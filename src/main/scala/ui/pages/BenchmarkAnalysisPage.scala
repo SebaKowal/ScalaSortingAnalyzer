@@ -7,6 +7,10 @@ import scalafx.geometry.{Insets, Pos}
 import scalafx.scene.control.Label
 import scalafx.scene.layout.*
 import scalafx.Includes.*
+import javafx.scene.chart.{LineChart, BarChart, XYChart, NumberAxis, CategoryAxis}
+import javafx.scene.control.{ComboBox, ScrollPane as JScrollPane}
+import javafx.scene.layout.GridPane
+import scalafx.application.Platform
 
 object BenchmarkAnalysisPage:
 
@@ -110,6 +114,75 @@ object BenchmarkAnalysisPage:
       sp.children.add(box.delegate)
       sp
 
+    // ── Shared chart helpers ──────────────────────────────────
+    case class AvgResult(
+      algoName: String, pattern: String, size: Int,
+      avgTimeMs: Double, avgComparisons: Double, avgSwaps: Double,
+      avgHeapDeltaMb: Double, avgGcCollections: Double
+    )
+
+    def aggregate(warm: Seq[BenchmarkResult]): Seq[AvgResult] =
+      warm.groupBy(r => (r.algoName, r.pattern, r.size)).map {
+        case ((algo, pat, sz), rs) =>
+          AvgResult(
+            algo, pat, sz,
+            avgTimeMs        = rs.map(_.timeMs).sum / rs.size,
+            avgComparisons   = rs.map(_.comparisons.toDouble).sum / rs.size,
+            avgSwaps         = rs.map(_.swaps.toDouble).sum / rs.size,
+            avgHeapDeltaMb   = rs.map(_.heapDeltaMb).sum / rs.size,
+            avgGcCollections = rs.map(_.gcCollections.toDouble).sum / rs.size
+          )
+      }.toSeq
+
+    val palette = Seq(
+      "#00d4ff", "#ff8c00", "#00ff9d", "#ff2d6b",
+      "#a855f7", "#facc15", "#38bdf8", "#f472b6"
+    )
+
+    def seriesColor(idx: Int): String = palette(idx % palette.size)
+
+    def applyChartCss(chart: javafx.scene.chart.XYChart[?, ?], colors: Seq[String]): Unit =
+      val css = colors.zipWithIndex.map { (color, idx) =>
+        s".default-color$idx.chart-series-line { -fx-stroke: $color; }" +
+        s".default-color$idx.chart-line-symbol { -fx-background-color: $color, white; }" +
+        s".default-color$idx.chart-bar { -fx-bar-fill: $color; }"
+      }.mkString
+      val encoded = java.net.URLEncoder.encode(css, "UTF-8").replace("+", "%20")
+      chart.getStylesheets.add(s"data:text/css,$encoded")
+
+    def interpolateColor(fraction: Double): String =
+      val f = fraction.max(0.0).min(1.0)
+      val (r1, g1, b1, r2, g2, b2) =
+        if f <= 0.5 then (0x00, 0xff, 0x9d, 0xff, 0x8c, 0x00)
+        else             (0xff, 0x8c, 0x00, 0xff, 0x2d, 0x6b)
+      val t = if f <= 0.5 then f * 2.0 else (f - 0.5) * 2.0
+      val r = (r1 + (r2 - r1) * t).toInt
+      val g = (g1 + (g2 - g1) * t).toInt
+      val b = (b1 + (b2 - b1) * t).toInt
+      f"#$r%02x$g%02x$b%02x"
+
+    def buildInsightCard(badge: String, title: String, detail: String, color: String): HBox =
+      val badgeLbl = new Label(badge)
+      badgeLbl.style = s"-fx-text-fill: $color; -fx-font-weight: bold; -fx-font-size: 14px; " +
+        s"-fx-font-family: 'Consolas', monospace; -fx-min-width: 32;"
+
+      val titleLbl = new Label(title)
+      titleLbl.style = s"-fx-text-fill: ${Theme.TextBright}; -fx-font-size: 13px; " +
+        s"-fx-font-weight: bold; -fx-font-family: 'Consolas', monospace;"
+
+      val detailLbl = new Label(detail)
+      detailLbl.style    = Theme.labelStyle(11, Theme.TextNormal)
+      detailLbl.wrapText = true
+
+      val textBox = new VBox(2)
+      textBox.children.addAll(titleLbl.delegate, detailLbl.delegate)
+
+      val card = new HBox(12)
+      card.style     = Theme.cardStyle + s" -fx-padding: 12;"
+      card.alignment = Pos.CenterLeft
+      card.children.addAll(badgeLbl.delegate, textBox.delegate)
+      card
+
     // ── Tab content builders (placeholders for now) ───────────
     // Step 3 will replace scalingView with real LineChart
     def scalingView(): StackPane =
@@ -179,6 +252,10 @@ object BenchmarkAnalysisPage:
 
     // Show initial tab
     showTab(AnalysisTab.Scaling)
+
+    results.onChange { (_, _) =>
+      Platform.runLater { showTab(currentTab) }
+    }
 
     // ── Root ──────────────────────────────────────────────────
     val root = new BorderPane

@@ -72,6 +72,7 @@ object NavBar:
     val vizItem   = navItem("VISUALIZER", Page.Visualizer)
     val algoItem  = navItem("ALGORITHMS", Page.Algorithms)
     val benchItem = navItem("BENCHMARK",  Page.Benchmark)
+    val analysisItem = navItem("ANALYSIS", Page.Analysis)
 
     val spacer = new Region
     HBox.setHgrow(spacer, Priority.Always)
@@ -86,6 +87,7 @@ object NavBar:
       vizItem.delegate,
       algoItem.delegate,
       benchItem.delegate,
+      analysisItem.delegate,
       spacer,
       versionLbl.delegate
     )

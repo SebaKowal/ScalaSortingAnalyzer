@@ -1,6 +1,6 @@
 package ui.pages
 
-import benchmark.{BenchmarkResult, BenchmarkRunner}
+import benchmark.{BenchmarkResult, BenchmarkRunner, BenchmarkState}
 import model.{AlgorithmType, GeneratorType}
 import ui.Theme
 import scalafx.application.Platform
@@ -41,13 +41,10 @@ object BenchmarkPage:
         s"-fx-font-family: 'Consolas', monospace; -fx-font-size: 10px;"
       l
 
-    // ── Results ───────────────────────────────────────────────
-    val results = ObservableBuffer.empty[BenchmarkResult]
-
     // ── Rank helpers ──────────────────────────────────────────
     // Group warm results by (size, pattern), rank by timeNs ascending
     def rankMap(): Map[(String, String, Int), Int] =
-      val warm = results.filter(_.isWarm)
+      val warm = BenchmarkState.results.filter(_.isWarm)
       val grouped = warm.groupBy(r => (r.pattern, r.algoName, r.size))
       // average timeNs per (algo, pattern, size) group
       val avgTimes = grouped.map { (k, runs) =>
@@ -65,7 +62,7 @@ object BenchmarkPage:
     def pctVsFastest(r: BenchmarkResult, ranks: Map[(String, String, Int), Int]): String =
       if !r.isWarm then "—"
       else
-        val warm = results.filter(w => w.isWarm && w.pattern == r.pattern && w.size == r.size)
+        val warm = BenchmarkState.results.filter(w => w.isWarm && w.pattern == r.pattern && w.size == r.size)
         if warm.isEmpty then "—"
         else
           val fastest = warm.map(_.timeNs).min
@@ -126,7 +123,7 @@ object BenchmarkPage:
       }
       c
 
-    val table = new TableView[BenchmarkResult](results)
+    val table = new TableView[BenchmarkResult](BenchmarkState.results)
     table.style = s"-fx-background-color: ${Theme.BgBase}; -fx-text-fill: ${Theme.TextBright};"
     table.columnResizePolicy = TableView.ConstrainedResizePolicy
     table.delegate.getStylesheets.add(Theme.tableViewStylesheet)
@@ -177,8 +174,8 @@ object BenchmarkPage:
       )
 
     rebuildColumns()
-
-    results.onChange { (_, _) =>
+    
+    BenchmarkState.results.onChange { (_, _) =>
       Platform.runLater { rebuildColumns() }
     }
 
@@ -191,7 +188,7 @@ object BenchmarkPage:
 
     def updateSummary(): Unit =
       summaryBox.children.clear()
-      val warm = results.filter(_.isWarm)
+      val warm = BenchmarkState.results.filter(_.isWarm)
       if warm.isEmpty then return
 
       val fastest    = warm.minBy(_.timeNs)
@@ -213,7 +210,7 @@ object BenchmarkPage:
       summaryBox.children.add(row1.delegate)
 
       // JIT speedup row
-      val speedups = results.groupBy(_.algoName).flatMap { (name, runs) =>
+      val speedups = BenchmarkState.results.groupBy(_.algoName).flatMap { (name, runs) =>
         val cold     = runs.find(!_.isWarm)
         val warmRuns = runs.filter(_.isWarm)
         if cold.isDefined && warmRuns.nonEmpty then
@@ -238,7 +235,7 @@ object BenchmarkPage:
         }
         summaryBox.children.add(row2.delegate)
 
-    results.onChange { (_, _) =>
+    BenchmarkState.results.onChange { (_, _) =>
       Platform.runLater { updateSummary() }
     }
 
@@ -307,7 +304,7 @@ object BenchmarkPage:
     btnClear.maxWidth = Double.MaxValue
 
     btnClear.onAction = _ =>
-      results.clear()
+      BenchmarkState.results.clear()
       progressLbl.text     = "Results cleared"
       progressBar.progress = 0.0
 
@@ -346,7 +343,7 @@ object BenchmarkPage:
             )
             done += 1
             Platform.runLater {
-              results.addAll(runs*)
+              BenchmarkState.results.addAll(runs*)
               progressBar.progress = done.toDouble / total
               progressLbl.text = s"$done / $total combinations complete"
             }
@@ -355,7 +352,7 @@ object BenchmarkPage:
             btnRun.disable    = false
             btnClear.disable  = false
             progressBar.visible = false
-            progressLbl.text  = s"✓  Done — ${results.size} data points collected"
+            progressLbl.text  = s"✓  Done — ${BenchmarkState.results.size} data points collected"
           }
         }
 
