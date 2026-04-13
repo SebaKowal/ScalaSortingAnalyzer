@@ -19,10 +19,11 @@ class LeftPanel(state: AppState, viz: VisualizerPanel):
 
   private def makeCombo(items: Seq[String], initial: String): ComboBox[String] =
     val cb = new ComboBox[String]
-    cb.items = scalafx.collections.ObservableBuffer(items*)
+    cb.items = scalafx.collections.ObservableBuffer(items *)
     cb.value = initial
     cb.maxWidth = Double.MaxValue
     cb.style = Theme.comboStyle
+    cb.delegate.getStylesheets.add(Theme.comboBoxStylesheet)
     cb
 
   private def makeSlider(min: Double, max: Double, init: Double): Slider =

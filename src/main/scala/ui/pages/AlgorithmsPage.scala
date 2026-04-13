@@ -110,43 +110,6 @@ object AlgorithmsPage:
       outer.children.add(lbl.delegate)
       outer
 
-    def tabStylesheet: String =
-      "data:text/css," +
-        java.net.URLEncoder.encode(
-          s""".tab-pane > .tab-header-area > .headers-region > .tab {
-             |  -fx-background-color: transparent;
-             |  -fx-background-insets: 0;
-             |  -fx-padding: 0 16 0 16;
-             |  -fx-border-width: 0;
-             |}
-             |.tab-pane > .tab-header-area > .headers-region > .tab .tab-label {
-             |  -fx-text-fill: ${Theme.TextDim};
-             |  -fx-font-family: 'Consolas', monospace;
-             |  -fx-font-size: 11px;
-             |}
-             |.tab-pane > .tab-header-area > .headers-region > .tab:selected {
-             |  -fx-background-color: ${Theme.BgBase};
-             |  -fx-border-color: ${Theme.AccentPrimary};
-             |  -fx-border-width: 0 0 2 0;
-             |}
-             |.tab-pane > .tab-header-area > .headers-region > .tab:selected .tab-label {
-             |  -fx-text-fill: ${Theme.AccentPrimary};
-             |}
-             |.tab-pane > .tab-header-area {
-             |  -fx-background-color: ${Theme.BgDeep};
-             |  -fx-border-color: ${Theme.BgBorder};
-             |  -fx-border-width: 0 0 1 0;
-             |}
-             |.tab-pane > .tab-header-area > .tab-header-background {
-             |  -fx-background-color: ${Theme.BgDeep};
-             |}
-             |.tab-pane > .tab-content-area {
-             |  -fx-background-color: ${Theme.BgDeep};
-             |  -fx-border-color: transparent;
-             |}""".stripMargin,
-          "UTF-8"
-        ).replace("+", "%20")
-
     def refresh(algo: AlgorithmType): Unit =
       detailInner.children.clear()
 
@@ -219,7 +182,7 @@ object AlgorithmsPage:
              |-fx-tab-max-height: 32px;
              |-fx-open-tab-animation: NONE;
              |-fx-close-tab-animation: NONE;""".stripMargin
-        codeTabs.delegate.getStylesheets.add(tabStylesheet)
+        codeTabs.delegate.getStylesheets.add(Theme.tabPaneStylesheet)
 
         def makeTab(title: String, node: scalafx.scene.Node): Tab =
           val t = new Tab
