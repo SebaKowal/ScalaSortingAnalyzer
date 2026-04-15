@@ -14,4 +14,7 @@ object AlgorithmRegistry:
     AlgorithmType.CocktailSort  -> CocktailSort
   )
 
-  def get(t: AlgorithmType): SortAlgorithm = all(t)
+  def get(t: AlgorithmType): SortAlgorithm =
+    all.getOrElse(t, throw new IllegalStateException(
+      s"No implementation registered for $t — add it to AlgorithmRegistry.all"
+    ))

@@ -14,7 +14,7 @@ object MainView:
     // Build all pages once
     val vizPage      = VisualizerPage.build(state)
     val algoPage     = AlgorithmsPage.build()
-    val benchPage    = BenchmarkPage.build()
+    val benchPage    = BenchmarkPage.build(BenchmarkState.results)
     val analysisPage = BenchmarkAnalysisPage.build(BenchmarkState.results)
 
     // Page container — swaps content on nav change

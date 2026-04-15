@@ -1,15 +1,17 @@
 package benchmark
 
 import java.lang.management.ManagementFactory
-import com.sun.management.OperatingSystemMXBean
 import scala.jdk.CollectionConverters.*
 
 object SystemMonitor:
 
   private val memBean = ManagementFactory.getMemoryMXBean
-  private val osBean  = ManagementFactory.getOperatingSystemMXBean
-    .asInstanceOf[OperatingSystemMXBean]
   private val gcBeans = ManagementFactory.getGarbageCollectorMXBeans.asScala.toList
+
+  private val osBeanOpt: Option[com.sun.management.OperatingSystemMXBean] =
+    ManagementFactory.getOperatingSystemMXBean match
+      case b: com.sun.management.OperatingSystemMXBean => Some(b)
+      case _                                            => None
 
   def heapUsedMb: Double =
     memBean.getHeapMemoryUsage.getUsed.toDouble / (1024 * 1024)
@@ -24,10 +26,10 @@ object SystemMonitor:
     memBean.getNonHeapMemoryUsage.getUsed.toDouble / (1024 * 1024)
 
   def cpuLoadPercent: Double =
-    (osBean.getProcessCpuLoad * 100).max(0)
+    osBeanOpt.map(b => (b.getProcessCpuLoad * 100).max(0)).getOrElse(0.0)
 
   def systemCpuLoadPercent: Double =
-    (osBean.getCpuLoad * 100).max(0)
+    osBeanOpt.map(b => (b.getCpuLoad * 100).max(0)).getOrElse(0.0)
 
   def totalGcCollections: Long =
     gcBeans.map(_.getCollectionCount).filter(_ >= 0).sum

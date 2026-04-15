@@ -15,21 +15,12 @@ object StabilityChecker:
       case _ => true
     }
 
-  /** Check stability using the step-based algorithms by sorting a tagged array
-   *  We use a reference stable sort to compare against */
-  def isAlgorithmStable(algoName: String): Boolean =
-    // Known stability from algorithm theory
-    // We verify empirically below but this covers the known cases
-    algoName match
-      case "Bubble Sort"    => true
-      case "Insertion Sort" => true
-      case "Merge Sort"     => true
-      case "Cocktail Sort"  => true
-      case "Selection Sort" => false
-      case "Quick Sort"     => false
-      case "Heap Sort"      => false
-      case "Shell Sort"     => false
-      case _                => false
+  /** Whether the algorithm is stable by definition (preserves relative order of equal elements). */
+  def isAlgorithmStable(algo: model.AlgorithmType): Boolean =
+    import model.AlgorithmType.*
+    algo match
+      case BubbleSort | InsertionSort | MergeSort | CocktailSort => true
+      case SelectionSort | QuickSort | HeapSort | ShellSort       => false
 
   /** Empirical stability check — sorts a known array with duplicates
    *  using a direct sort function and checks index preservation */

@@ -3,7 +3,8 @@ package ui.panel
 import app.AppState
 import benchmark.SystemMonitor
 import model.{AlgorithmType, GeneratorType}
-import scalafx.animation.AnimationTimer
+import scalafx.animation.{Animation, KeyFrame, Timeline}
+import scalafx.util.Duration
 import scalafx.geometry.{Insets, Pos}
 import scalafx.scene.control.*
 import scalafx.scene.layout.*
@@ -171,13 +172,17 @@ class LeftPanel(state: AppState, viz: VisualizerPanel):
   private val gcRunsLbl = makeStatVal(Theme.TextBright)
   private val gcTimeLbl = makeStatVal(Theme.TextBright)
 
-  private val jvmTimer = AnimationTimer { _ =>
-    heapLbl.text   = f"${SystemMonitor.heapUsedMb}%.1f / ${SystemMonitor.heapMaxMb}%.0f MB"
-    cpuLbl.text    = f"${SystemMonitor.cpuLoadPercent}%.1f %%"
-    gcRunsLbl.text = SystemMonitor.totalGcCollections.toString
-    gcTimeLbl.text = s"${SystemMonitor.totalGcTimeMs}ms"
-  }
-  jvmTimer.start()
+  private val jvmTimer = new Timeline:
+    cycleCount = Animation.Indefinite
+    keyFrames = Seq(
+      KeyFrame(Duration(1500), onFinished = _ => {
+        heapLbl.text   = f"${SystemMonitor.heapUsedMb}%.1f / ${SystemMonitor.heapMaxMb}%.0f MB"
+        cpuLbl.text    = f"${SystemMonitor.cpuLoadPercent}%.1f %%"
+        gcRunsLbl.text = SystemMonitor.totalGcCollections.toString
+        gcTimeLbl.text = s"${SystemMonitor.totalGcTimeMs}ms"
+      })
+    )
+  jvmTimer.play()
 
   // ── Panel assembly ────────────────────────────────────────────
   val panel: VBox = new VBox(0)

@@ -1,7 +1,7 @@
 package engine
 
 import app.AppState
-import algorithms.AlgorithmRegistry
+import algorithms.{AlgorithmRegistry, StepChannel}
 import model.SortStep
 import model.SortStep.*
 import scalafx.animation.AnimationTimer
@@ -18,8 +18,7 @@ class AnimationEngine(
   private var lastNanos: Long  = 0L
   private var startNanos: Long = 0L
 
-  private var timer: AnimationTimer = null.asInstanceOf[AnimationTimer]
-  timer = AnimationTimer { now =>
+  private val timer: AnimationTimer = AnimationTimer { now =>
     if !state.isPaused.value then
       val delayNanos = state.animationSpeed.value * 1_000_000L
       if now - lastNanos >= delayNanos then
@@ -32,6 +31,7 @@ class AnimationEngine(
   }
 
   def start(arr: Array[Int]): Unit =
+    StepChannel.cancelActiveProducer()
     val algo = AlgorithmRegistry.get(state.selectedAlgorithm.value)
     steps      = algo.steps(arr).iterator
     state.comparisons.value = 0
@@ -48,6 +48,8 @@ class AnimationEngine(
 
   def stop(): Unit =
     timer.stop()
+    StepChannel.cancelActiveProducer()
+    steps = Iterator.empty
     state.isRunning.value = false
     state.isPaused.value  = false
 

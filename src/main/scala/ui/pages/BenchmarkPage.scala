@@ -1,6 +1,6 @@
 package ui.pages
 
-import benchmark.{BenchmarkResult, BenchmarkRunner, BenchmarkState}
+import benchmark.{BenchmarkExporter, BenchmarkResult, BenchmarkRunner, CorrectnessValidator}
 import model.{AlgorithmType, GeneratorType}
 import ui.Theme
 import scalafx.application.Platform
@@ -13,26 +13,27 @@ import scalafx.Includes.*
 import scala.concurrent.{ExecutionContext, Future}
 
 object BenchmarkPage:
-  given ExecutionContext = ExecutionContext.global
+  private val benchmarkExecutor =
+    java.util.concurrent.Executors.newSingleThreadExecutor { r =>
+      val t = new Thread(r, "benchmark-worker")
+      t.setDaemon(true)
+      t
+    }
+  given ExecutionContext = ExecutionContext.fromExecutorService(benchmarkExecutor)
 
-  def build(): BorderPane =
+  def build(results: ObservableBuffer[BenchmarkResult]): BorderPane =
 
-    // ── Helpers ──────────────────────────────────────────────
     def hdr(text: String): Label =
-      val l = new Label(text)
-      l.style = Theme.titleStyle(9)
-      l
+      val l = new Label(text); l.style = Theme.titleStyle(9); l
 
     def spacer(h: Int = 6): Region =
       val r = new Region; r.prefHeight = h; r
 
     def divider(): Region =
       val r = new Region
-      r.prefHeight = 1
-      r.maxWidth   = Double.MaxValue
+      r.prefHeight = 1; r.maxWidth = Double.MaxValue
       r.style = s"-fx-background-color: ${Theme.BgBorder};"
-      VBox.setMargin(r, Insets(10, 0, 10, 0))
-      r
+      VBox.setMargin(r, Insets(10, 0, 10, 0)); r
 
     def chip(text: String, color: String): Label =
       val l = new Label(text)
@@ -41,51 +42,54 @@ object BenchmarkPage:
         s"-fx-font-family: 'Consolas', monospace; -fx-font-size: 10px;"
       l
 
-    // ── Rank helpers ──────────────────────────────────────────
-    // Group warm results by (size, pattern), rank by timeNs ascending
+    // ── Rank / pct helpers ────────────────────────────────────
     def rankMap(): Map[(String, String, Int), Int] =
-      val warm = BenchmarkState.results.filter(_.isWarm)
+      val warm = results.filter(_.isWarm)
       val grouped = warm.groupBy(r => (r.pattern, r.algoName, r.size))
-      // average timeNs per (algo, pattern, size) group
-      val avgTimes = grouped.map { (k, runs) =>
-        k -> runs.map(_.timeNs).sum / runs.size
-      }
-      // for each (pattern, size) bucket, rank algos by avg time
+      val avgTimes = grouped.map { (k, runs) => k -> runs.map(_.timeNs).sum / runs.size }
       val byBucket = avgTimes.groupBy { case ((pattern, _, size), _) => (pattern, size) }
       byBucket.flatMap { case ((pattern, size), entries) =>
-        val sorted = entries.toSeq.sortBy(_._2)
-        sorted.zipWithIndex.map { case (((p, algo, s), _), idx) =>
-          (algo, p, s) -> (idx + 1)
+        entries.toSeq.sortBy(_._2).zipWithIndex.map {
+          case (((p, algo, s), _), idx) => (algo, p, s) -> (idx + 1)
         }
-      }.toMap
+      }
 
-    def pctVsFastest(r: BenchmarkResult, ranks: Map[(String, String, Int), Int]): String =
+    def pctVsFastest(r: BenchmarkResult): String =
       if !r.isWarm then "—"
       else
-        val warm = BenchmarkState.results.filter(w => w.isWarm && w.pattern == r.pattern && w.size == r.size)
+        val warm = results.filter(w => w.isWarm && w.pattern == r.pattern && w.size == r.size)
         if warm.isEmpty then "—"
         else
           val fastest = warm.map(_.timeNs).min
           if fastest <= 0 then "—"
           else
             val ratio = r.timeNs.toDouble / fastest
-            if ratio <= 1.05 then "fastest"
-            else f"${ratio}%.1fx"
+            if ratio <= 1.05 then "fastest" else f"$ratio%.1fx"
 
-    def rankStr(r: BenchmarkResult, ranks: Map[(String, String, Int), Int]): String =
+    var currentRanks: Map[(String, String, Int), Int] = Map.empty
+
+    def rankStr(r: BenchmarkResult): String =
       if !r.isWarm then "—"
-      else ranks.get((r.algoName, r.pattern, r.size)).map(n => s"#$n").getOrElse("—")
+      else currentRanks.get((r.algoName, r.pattern, r.size)).map(n => s"#$n").getOrElse("—")
 
-    def rankColor(r: BenchmarkResult, ranks: Map[(String, String, Int), Int]): String =
+    def rankColor(r: BenchmarkResult): String =
       if !r.isWarm then Theme.TextDim
-      else ranks.get((r.algoName, r.pattern, r.size)) match
+      else currentRanks.get((r.algoName, r.pattern, r.size)) match
         case Some(1) => Theme.AccentSuccess
         case Some(2) => Theme.AccentSecondary
         case Some(n) if n >= 7 => Theme.AccentDanger
         case _ => Theme.TextNormal
 
+    def pctColor(r: BenchmarkResult): String =
+      val pct = pctVsFastest(r)
+      if pct == "fastest" then Theme.AccentSuccess
+      else if pct == "—" then Theme.TextDim
+      else
+        val ratio = pct.dropRight(1).toDoubleOption.getOrElse(1.0)
+        if ratio < 2.0 then Theme.AccentSecondary else Theme.AccentDanger
+
     // ── Table ─────────────────────────────────────────────────
-    def strCol(
+    def makeCol(
                  title: String,
                  w: Double,
                  fn: BenchmarkResult => String,
@@ -95,151 +99,171 @@ object BenchmarkPage:
       c.prefWidth = w
       c.cellValueFactory = cdf =>
         scalafx.beans.property.StringProperty(fn(cdf.value))
-      // Use javafx.scene.control.TableCell directly to avoid ScalaFX member conflicts
       c.delegate.setCellFactory { _ =>
         new javafx.scene.control.TableCell[BenchmarkResult, String]:
           override def updateItem(item: String, empty: Boolean): Unit =
             super.updateItem(item, empty)
             if empty || item == null then
-              setText(null)
-              setStyle("")
+              setText(null); setStyle("")
             else
               setText(item)
               val row = getTableRow
               if row != null && row.getItem != null then
-                val r = row.getItem
-                val color = colorFn(r)
+                val color = colorFn(row.getItem)
                 setStyle(
-                  s"-fx-text-fill: $color; " +
-                    s"-fx-font-family: 'Consolas', monospace; " +
+                  s"-fx-text-fill: $color; -fx-font-family: 'Consolas', monospace; " +
                     s"-fx-font-size: 11px; -fx-alignment: CENTER;"
                 )
               else
                 setStyle(
-                  s"-fx-text-fill: ${Theme.TextNormal}; " +
-                    s"-fx-font-family: 'Consolas', monospace; " +
+                  s"-fx-text-fill: ${Theme.TextNormal}; -fx-font-family: 'Consolas', monospace; " +
                     s"-fx-font-size: 11px; -fx-alignment: CENTER;"
                 )
       }
       c
 
-    val table = new TableView[BenchmarkResult](BenchmarkState.results)
-    table.style = s"-fx-background-color: ${Theme.BgBase}; -fx-text-fill: ${Theme.TextBright};"
+    val table = new TableView[BenchmarkResult](results)
+    table.style = s"-fx-background-color: ${Theme.BgBase};"
     table.columnResizePolicy = TableView.ConstrainedResizePolicy
-    table.delegate.getStylesheets.add(Theme.tableViewStylesheet)
-
+    table.delegate.getStylesheets.add(
+      "data:text/css," +
+        java.net.URLEncoder.encode(
+          s""".table-view { -fx-background-color: ${Theme.BgBase}; }
+             |.table-view .column-header-background { -fx-background-color: ${Theme.BgDeep}; }
+             |.table-view .column-header {
+             |  -fx-background-color: ${Theme.BgDeep};
+             |  -fx-border-color: ${Theme.BgBorder}; -fx-border-width: 0 1 1 0;
+             |}
+             |.table-view .column-header .label {
+             |  -fx-text-fill: ${Theme.TextDim}; -fx-font-family: 'Consolas', monospace;
+             |  -fx-font-size: 10px; -fx-font-weight: bold;
+             |}
+             |.table-row-cell {
+             |  -fx-background-color: ${Theme.BgBase};
+             |  -fx-border-color: transparent transparent ${Theme.BgBorder} transparent;
+             |  -fx-table-cell-border-color: transparent;
+             |}
+             |.table-row-cell:odd  { -fx-background-color: ${Theme.BgRaised}; }
+             |.table-row-cell:selected { -fx-background-color: ${Theme.BgHover}; }
+             |.table-row-cell:hover    { -fx-background-color: ${Theme.BgHover}; }
+             |.table-cell {
+             |  -fx-text-fill: ${Theme.TextNormal}; -fx-font-family: 'Consolas', monospace;
+             |  -fx-font-size: 11px; -fx-border-color: transparent;
+             |}""".stripMargin,
+          "UTF-8"
+        ).replace("+", "%20")
+    )
     VBox.setVgrow(table, Priority.Always)
 
-    // Rebuild columns using current rank data each time results change
-    def rebuildColumns(): Unit =
-      val ranks = rankMap()
-      table.columns.clear()
-      table.columns ++= Seq(
-        strCol("Algorithm", 110, _.algoName,
-          r => if r.isWarm then Theme.TextBright else Theme.TextDim),
-        strCol("Pattern", 100, _.pattern),
-        strCol("Size", 50, _.size.toString),
-        strCol("Run", 45,
-          r => if r.isWarm then "WARM" else "COLD",
-          r => if r.isWarm then Theme.AccentPrimary else Theme.TextDim),
-        strCol("Rank", 45,
-          r => rankStr(r, ranks),
-          r => rankColor(r, ranks)),
-        strCol("vs Fastest", 75,
-          r => pctVsFastest(r, ranks),
-          r =>
-            val pct = pctVsFastest(r, ranks)
-            if pct == "fastest" then Theme.AccentSuccess
-            else if pct == "—" then Theme.TextDim
-            else
-              val ratio = pct.dropRight(1).toDoubleOption.getOrElse(1.0)
-              if ratio < 1.5 then Theme.AccentSecondary
-              else if ratio < 3.0 then Theme.AccentSecondary
-              else Theme.AccentDanger
-        ),
-        strCol("Time", 75, _.timeMsStr,
-          r => if r.isWarm then Theme.TextBright else Theme.TextDim),
-        strCol("Throughput", 85, _.throughputStr),
-        strCol("Comparisons", 90, r => f"${r.comparisons}%,d"),
-        strCol("Swaps", 70, r => f"${r.swaps}%,d"),
-        strCol("Writes", 65, r => f"${r.writes}%,d"),
-        strCol("Heap Δ MB", 70, r => f"${r.heapDeltaMb}%.2f"),
-        strCol("GC runs", 55, r => r.gcCollections.toString),
-        strCol("Sorted?", 55,
-          r => if r.isSorted then "✓" else "✗",
-          r => if r.isSorted then Theme.AccentSuccess else Theme.AccentDanger),
-        strCol("Stable?", 55,
-          r => if r.isStable then "✓" else "—",
-          r => if r.isStable then Theme.AccentSuccess else Theme.TextDim)
-      )
+    table.columns ++= Seq(
+      makeCol("Algorithm",  110, _.algoName,
+        r => if r.hasFailure then Theme.AccentDanger
+        else if r.isWarm then Theme.TextBright else Theme.TextDim),
+      makeCol("Pattern",    100, _.pattern),
+      makeCol("Size",        50, _.size.toString),
+      makeCol("Run",         45,
+        r => if r.hasFailure then "FAIL" else if r.isWarm then "WARM" else "COLD",
+        r => if r.hasFailure then Theme.AccentDanger
+        else if r.isWarm then Theme.AccentPrimary else Theme.TextDim),
+      makeCol("Rank",        45, r => rankStr(r), r => rankColor(r)),
+      makeCol("vs Fastest",  75, r => pctVsFastest(r), r => pctColor(r)),
+      makeCol("Mean",        75, r => if r.timeMeanNs > 0 then f"${r.timeMeanNs/1e6}%.2f" else r.timeMsStr,
+        r => if r.isWarm then Theme.TextBright else Theme.TextDim),
+      makeCol("Median",      75, r => if r.timeMedianNs > 0 then f"${r.timeMedianNs/1e6}%.2f" else "—"),
+      makeCol("P99",         70, r => if r.timeP99Ns > 0 then f"${r.timeP99Ns/1e6}%.2f" else "—",
+        r => if r.timeP99Ns > r.timeMeanNs * 3 then Theme.AccentDanger else Theme.TextNormal),
+      makeCol("StdDev",      70, r => if r.timeStdDevNs > 0 then f"${r.timeStdDevNs/1e6}%.2f" else "—"),
+      makeCol("Throughput",  85, _.throughputStr),
+      makeCol("Comparisons", 90, r => f"${r.comparisons}%,d"),
+      makeCol("Swaps",       70, r => f"${r.swaps}%,d"),
+      makeCol("Writes",      65, r => f"${r.writes}%,d"),
+      makeCol("Heap MB",     70, r => f"${r.maxHeapMb}%.2f"),
+      makeCol("CPU %",       60, r => f"${r.cpuPercent}%.1f"),
+      makeCol("GC runs",     55, r => r.gcCollections.toString),
+      makeCol("Sorted?",     60,
+        r => if r.hasFailure then "FAIL" else if r.isSorted then "✓" else "✗",
+        r => if r.hasFailure || !r.isSorted then Theme.AccentDanger else Theme.AccentSuccess),
+      makeCol("Stable?",     60,
+        r => if r.isStable then "✓" else "—",
+        r => if r.isStable then Theme.AccentSuccess else Theme.TextDim)
+    )
 
-    rebuildColumns()
-    
-    BenchmarkState.results.onChange { (_, _) =>
-      Platform.runLater { rebuildColumns() }
-    }
+    results.onChange { (_, _) => Platform.runLater {
+      currentRanks = rankMap()
+      table.refresh()
+    }}
 
     // ── Summary bar ───────────────────────────────────────────
     val summaryBox = new VBox(6)
-    summaryBox.padding  = Insets(10, 14, 10, 14)
+    summaryBox.padding   = Insets(10, 14, 10, 14)
     summaryBox.minHeight = 70
-    summaryBox.style    = s"-fx-background-color: ${Theme.BgBase}; " +
+    summaryBox.style     = s"-fx-background-color: ${Theme.BgBase}; " +
       s"-fx-border-color: ${Theme.BgBorder}; -fx-border-width: 1 0 0 0;"
 
     def updateSummary(): Unit =
       summaryBox.children.clear()
-      val warm = BenchmarkState.results.filter(_.isWarm)
-      if warm.isEmpty then return
+      val warm    = results.filter(r => r.isWarm && !r.hasFailure)
+      val failed  = results.filter(_.hasFailure)
+      if warm.isEmpty && failed.isEmpty then return
 
-      val fastest    = warm.minBy(_.timeNs)
-      val slowest    = warm.maxBy(_.timeNs)
-      val leastComps = warm.minBy(_.comparisons)
-      val mostSwaps  = warm.maxBy(_.swaps)
+      if failed.nonEmpty then
+        val failRow = new HBox(8)
+        failRow.alignment = Pos.CenterLeft
+        val failHdr = new Label("FAILURES")
+        failHdr.style = Theme.titleStyle(9, Theme.AccentDanger)
+        failRow.children.add(failHdr.delegate)
+        failed.groupBy(_.algoName).foreach { (algo, _) =>
+          failRow.children.add(chip(s"✗ $algo", Theme.AccentDanger))
+        }
+        summaryBox.children.add(failRow.delegate)
 
-      val row1 = new HBox(10)
-      row1.alignment = Pos.CenterLeft
-      val sumHdr = new Label("SUMMARY")
-      sumHdr.style = Theme.titleStyle(9)
-      row1.children.addAll(
-        sumHdr.delegate,
-        chip(s"⚡ Fastest: ${fastest.algoName} / ${fastest.pattern} (${fastest.timeMsStr})", Theme.AccentSuccess),
-        chip(s"🐢 Slowest: ${slowest.algoName} / ${slowest.pattern} (${slowest.timeMsStr})", Theme.AccentDanger),
-        chip(s"🔍 Fewest comparisons: ${leastComps.algoName} (${f"${leastComps.comparisons}%,d"})", Theme.AccentPrimary),
-        chip(s"🔄 Most swaps: ${mostSwaps.algoName} (${f"${mostSwaps.swaps}%,d"})", Theme.AccentSecondary)
-      )
-      summaryBox.children.add(row1.delegate)
+      if warm.nonEmpty then
+        val fastest    = warm.minBy(_.timeNs)
+        val slowest    = warm.maxBy(_.timeNs)
+        val leastComps = warm.minBy(_.comparisons)
+        val mostSwaps  = warm.maxBy(_.swaps)
+        val highP99    = warm.filter(_.timeP99Ns > 0).maxByOption(_.timeP99Ns)
 
-      // JIT speedup row
-      val speedups = BenchmarkState.results.groupBy(_.algoName).flatMap { (name, runs) =>
-        val cold     = runs.find(!_.isWarm)
-        val warmRuns = runs.filter(_.isWarm)
-        if cold.isDefined && warmRuns.nonEmpty then
-          val avgWarm = warmRuns.map(_.timeNs).sum / warmRuns.size
-          val ratio   = cold.get.timeNs.toDouble / avgWarm
-          Some(name -> ratio)
-        else None
-      }.toSeq.sortBy(-_._2)
+        val row1 = new HBox(10)
+        row1.alignment = Pos.CenterLeft
+        val sumHdr = new Label("SUMMARY"); sumHdr.style = Theme.titleStyle(9)
+        row1.children.addAll(
+          sumHdr.delegate,
+          chip(s"Fastest: ${fastest.algoName}/${fastest.pattern} (${fastest.timeMsStr})", Theme.AccentSuccess),
+          chip(s"Slowest: ${slowest.algoName}/${slowest.pattern} (${slowest.timeMsStr})", Theme.AccentDanger),
+          chip(s"Fewest cmps: ${leastComps.algoName} (${f"${leastComps.comparisons}%,d"})", Theme.AccentPrimary),
+          chip(s"Most swaps: ${mostSwaps.algoName} (${f"${mostSwaps.swaps}%,d"})", Theme.AccentSecondary)
+        )
+        highP99.foreach { hp =>
+          row1.children.add(chip(s"High P99: ${hp.algoName} (${f"${hp.timeP99Ns/1e6}%.1f"}ms)", Theme.AccentDanger))
+        }
+        summaryBox.children.add(row1.delegate)
 
-      if speedups.nonEmpty then
-        val row2 = new HBox(8)
-        row2.alignment = Pos.CenterLeft
-        val jitHdr = new Label("JIT SPEEDUP")
-        jitHdr.style = Theme.titleStyle(9)
-        row2.children.add(jitHdr.delegate)
-        speedups.foreach { (name, ratio) =>
-          val color =
-            if ratio > 5  then Theme.AccentSuccess
+        val speedups = results.filter(!_.hasFailure).groupBy(_.algoName).flatMap { (name, runs) =>
+          val cold     = runs.find(!_.isWarm)
+          val warmRuns = runs.filter(_.isWarm)
+          if cold.isDefined && warmRuns.nonEmpty then
+            val avgWarm = warmRuns.map(_.timeNs).sum / warmRuns.size
+            Some(name -> cold.get.timeNs.toDouble / avgWarm)
+          else None
+        }.toSeq.sortBy(-_._2)
+
+        if speedups.nonEmpty then
+          val row2 = new HBox(8)
+          row2.alignment = Pos.CenterLeft
+          val jitHdr = new Label("JIT SPEEDUP"); jitHdr.style = Theme.titleStyle(9)
+          row2.children.add(jitHdr.delegate)
+          speedups.foreach { (name, ratio) =>
+            val color = if ratio > 5 then Theme.AccentSuccess
             else if ratio > 2 then Theme.AccentSecondary
             else Theme.TextDim
-          row2.children.add(chip(f"$name: ${ratio}%.1fx", color))
-        }
-        summaryBox.children.add(row2.delegate)
+            row2.children.add(chip(f"$name: $ratio%.1fx", color))
+          }
+          summaryBox.children.add(row2.delegate)
 
-    BenchmarkState.results.onChange { (_, _) =>
-      Platform.runLater { updateSummary() }
-    }
+    results.onChange { (_, _) => Platform.runLater { updateSummary() } }
 
-    // ── Config checkboxes ─────────────────────────────────────
+    // ── Config ────────────────────────────────────────────────
     val algoChecks: Map[AlgorithmType, CheckBox] =
       AlgorithmType.values.map { a =>
         val cb = new CheckBox(a.label)
@@ -252,10 +276,8 @@ object BenchmarkPage:
       GeneratorType.values.map { g =>
         val cb = new CheckBox(g.label)
         cb.selected = Seq(
-          GeneratorType.Random,
-          GeneratorType.Sorted,
-          GeneratorType.SortedReverse,
-          GeneratorType.NearlySorted
+          GeneratorType.Random, GeneratorType.Sorted,
+          GeneratorType.SortedReverse, GeneratorType.NearlySorted
         ).contains(g)
         cb.style = Theme.labelStyle(11, Theme.TextNormal)
         g -> cb
@@ -269,19 +291,13 @@ object BenchmarkPage:
         n -> cb
       }.toMap
 
-    val warmupCheck = new CheckBox("JIT Warmup  (500 throwaway runs)")
+    val warmupCheck = new CheckBox("JIT Warmup (500 throwaway runs)")
     warmupCheck.selected = true
     warmupCheck.style = Theme.labelStyle(11, Theme.TextNormal)
 
-    val warmOnlyCheck = new CheckBox("Show warm runs only in table")
-    warmOnlyCheck.selected = false
-    warmOnlyCheck.style = Theme.labelStyle(11, Theme.TextNormal)
-
-    warmOnlyCheck.selected.onChange { (_, _, warmOnly) =>
-      // filter table view — we keep all data, just change what's shown
-      // rebuild with filter applied
-      Platform.runLater { rebuildColumns() }
-    }
+    val validateFirstCheck = new CheckBox("Validate correctness before run")
+    validateFirstCheck.selected = true
+    validateFirstCheck.style = Theme.labelStyle(11, Theme.TextNormal)
 
     // ── Progress ──────────────────────────────────────────────
     val progressBar = new ProgressBar
@@ -294,7 +310,6 @@ object BenchmarkPage:
     val progressLbl = new Label("Configure options and click RUN")
     progressLbl.style = Theme.labelStyle(10, Theme.TextDim)
 
-    // ── Run / clear buttons ───────────────────────────────────
     val btnRun = new Button("▶  RUN BENCHMARK")
     btnRun.style    = Theme.buttonPrimary
     btnRun.maxWidth = Double.MaxValue
@@ -303,102 +318,143 @@ object BenchmarkPage:
     btnClear.style    = Theme.buttonSecondary
     btnClear.maxWidth = Double.MaxValue
 
+    val btnExportCsv = new Button("⬇  CSV")
+    btnExportCsv.style    = Theme.buttonSecondary
+    btnExportCsv.maxWidth = Double.MaxValue
+    btnExportCsv.disable  = true
+
+    val btnExportJson = new Button("⬇  JSON")
+    btnExportJson.style    = Theme.buttonSecondary
+    btnExportJson.maxWidth = Double.MaxValue
+    btnExportJson.disable  = true
+
+    val btnValidate = new Button("✓  VALIDATE ONLY")
+    btnValidate.style    = Theme.buttonSecondary
+    btnValidate.maxWidth = Double.MaxValue
+
+    results.onChange { (_, _) =>
+      val hasData = results.nonEmpty
+      btnExportCsv.disable  = !hasData
+      btnExportJson.disable = !hasData
+    }
+
     btnClear.onAction = _ =>
-      BenchmarkState.results.clear()
+      results.clear()
       progressLbl.text     = "Results cleared"
       progressBar.progress = 0.0
+
+    btnExportCsv.onAction = _ =>
+      Future {
+        val path = BenchmarkExporter.exportCsv(results.toSeq)
+        Platform.runLater { progressLbl.text = s"CSV exported: $path" }
+      }
+
+    btnExportJson.onAction = _ =>
+      Future {
+        val path = BenchmarkExporter.exportJson(results.toSeq)
+        Platform.runLater { progressLbl.text = s"JSON exported: $path" }
+      }
+
+    btnValidate.onAction = _ =>
+      btnValidate.disable = true
+      progressLbl.text    = "Running correctness validation…"
+      Future {
+        val validResults = CorrectnessValidator.validateAll()
+        val passed       = validResults.count(_.passed)
+        val failed       = validResults.filterNot(_.passed)
+        Platform.runLater {
+          btnValidate.disable = false
+          if failed.isEmpty then
+            progressLbl.text  = s"✓ All $passed checks passed"
+            progressLbl.style = Theme.labelStyle(10, Theme.AccentSuccess)
+          else
+            progressLbl.text  = s"✗ ${failed.size} checks failed / $passed passed"
+            progressLbl.style = Theme.labelStyle(10, Theme.AccentDanger)
+            // Add failure entries to results table so user can see them
+            failed.foreach { f =>
+              results += BenchmarkResult(
+                algoName   = f.algoName,
+                variant    = "Validation",
+                pattern    = f.pattern,
+                size       = f.size,
+                isWarm     = false,
+                timeNs     = 0L,
+                failureMsg = f.message
+              )
+            }
+        }
+      }
 
     btnRun.onAction = _ =>
       val algos    = algoChecks.filter(_._2.selected.value).keys.toList
       val gens     = genChecks.filter(_._2.selected.value).keys.toList
       val sizes    = sizeChecks.filter(_._2.selected.value).keys.toList.sorted
       val doWarmup = warmupCheck.selected.value
-
       if algos.isEmpty || gens.isEmpty || sizes.isEmpty then
-        progressLbl.text = "⚠  Select at least one algorithm, pattern, and size"
+        progressLbl.text = "Select at least one algorithm, pattern, and size"
       else
-        btnRun.disable   = true
-        btnClear.disable = true
+        btnRun.disable       = true
+        btnClear.disable     = true
         progressBar.visible  = true
         progressBar.progress = 0.0
-
         val total = algos.size * gens.size * sizes.size
         var done  = 0
-
         Future {
           for
             size <- sizes
             algo <- algos
             gen  <- gens
           do
-            val config = BenchmarkRunner.RunConfig(
-              algo      = algo,
-              generator = gen,
-              size      = size,
-              warmup    = doWarmup
-            )
             val runs = BenchmarkRunner.run(
-              config,
+              BenchmarkRunner.RunConfig(algo, gen, size, doWarmup),
               msg => Platform.runLater { progressLbl.text = msg }
             )
             done += 1
+            val snapshot = done
             Platform.runLater {
-              BenchmarkState.results.addAll(runs*)
-              progressBar.progress = done.toDouble / total
-              progressLbl.text = s"$done / $total combinations complete"
+              results.addAll(runs*)
+              progressBar.progress = snapshot.toDouble / total
+              progressLbl.text = s"$snapshot / $total combinations complete"
             }
-
           Platform.runLater {
-            btnRun.disable    = false
-            btnClear.disable  = false
+            btnRun.disable      = false
+            btnClear.disable    = false
             progressBar.visible = false
-            progressLbl.text  = s"✓  Done — ${BenchmarkState.results.size} data points collected"
+            progressLbl.text    = s"Done — ${results.size} data points"
           }
         }
 
-    // ── Select all / none helpers ─────────────────────────────
-    def selectAllBtn(checks: Iterable[CheckBox]): Button =
-      val b = new Button("all")
-      b.style = s"-fx-background-color: transparent; -fx-text-fill: ${Theme.AccentPrimary}; " +
-        s"-fx-font-size: 9px; -fx-font-family: 'Consolas', monospace; -fx-cursor: hand; -fx-padding: 0 4;"
-      b.onAction = _ => checks.foreach(_.selected = true)
+    def quickBtn(label: String, color: String, action: => Unit): Button =
+      val b = new Button(label)
+      b.style = s"-fx-background-color: transparent; -fx-text-fill: $color; " +
+        s"-fx-font-size: 9px; -fx-font-family: 'Consolas', monospace; " +
+        s"-fx-cursor: hand; -fx-padding: 0 4;"
+      b.onAction = _ => action
       b
 
-    def selectNoneBtn(checks: Iterable[CheckBox]): Button =
-      val b = new Button("none")
-      b.style = s"-fx-background-color: transparent; -fx-text-fill: ${Theme.TextDim}; " +
-        s"-fx-font-size: 9px; -fx-font-family: 'Consolas', monospace; -fx-cursor: hand; -fx-padding: 0 4;"
-      b.onAction = _ => checks.foreach(_.selected = false)
-      b
-
-    def sectionWithControls(title: String, checks: Iterable[CheckBox]): VBox =
+    def section(title: String, checks: Iterable[CheckBox]): VBox =
       val titleLbl = hdr(title)
-      val allBtn  = selectAllBtn(checks)
-      val noneBtn = selectNoneBtn(checks)
-      val sep = new Label("|")
-      sep.style = Theme.labelStyle(9, Theme.TextDim)
+      val sep      = new Label("|"); sep.style = Theme.labelStyle(9, Theme.TextDim)
       val titleRow = new HBox(4)
       titleRow.alignment = Pos.CenterLeft
-      titleRow.children.addAll(titleLbl.delegate, allBtn.delegate, sep.delegate, noneBtn.delegate)
-
+      titleRow.children.addAll(
+        titleLbl.delegate,
+        quickBtn("all",  Theme.AccentPrimary, checks.foreach(_.selected = true)).delegate,
+        sep.delegate,
+        quickBtn("none", Theme.TextDim, checks.foreach(_.selected = false)).delegate
+      )
       val flow = new FlowPane(6, 5)
       flow.padding = Insets(4, 0, 0, 0)
       checks.foreach(cb => flow.children.add(cb.delegate))
-
       val box = new VBox(3)
       box.children.addAll(titleRow.delegate, flow.delegate)
       box
 
-    // ── Config panel ──────────────────────────────────────────
-    val algoSection = sectionWithControls("ALGORITHMS", algoChecks.values)
-    val genSection  = sectionWithControls("DATA PATTERNS", genChecks.values)
-    val sizeSection = sectionWithControls("ARRAY SIZES", sizeChecks.values.toSeq.sortBy(_.text.value.toInt))
-
-    val optBox = new VBox(5)
-    optBox.children.addAll(
-      warmupCheck.delegate,
-      warmOnlyCheck.delegate
-    )
+    // ── Export row ────────────────────────────────────────────
+    val exportRow = new HBox(4)
+    HBox.setHgrow(btnExportCsv,  Priority.Always)
+    HBox.setHgrow(btnExportJson, Priority.Always)
+    exportRow.children.addAll(btnExportCsv.delegate, btnExportJson.delegate)
 
     val vGrow = new Region
     VBox.setVgrow(vGrow, Priority.Always)
@@ -411,15 +467,17 @@ object BenchmarkPage:
       s"-fx-border-color: ${Theme.BgBorder}; -fx-border-width: 0 1 0 0;"
     configPanel.padding = Insets(14, 12, 14, 12)
     configPanel.children.addAll(
-      algoSection.delegate,
+      section("ALGORITHMS",    algoChecks.values).delegate,
       spacer(10),
-      genSection.delegate,
+      section("DATA PATTERNS", genChecks.values).delegate,
       spacer(10),
-      sizeSection.delegate,
+      section("ARRAY SIZES",   sizeChecks.values.toSeq.sortBy(_.text.value.toInt)).delegate,
       spacer(10),
       hdr("OPTIONS").delegate,
       spacer(4),
-      optBox.delegate,
+      warmupCheck.delegate,
+      spacer(3),
+      validateFirstCheck.delegate,
       vGrow,
       divider(),
       progressBar.delegate,
@@ -428,21 +486,83 @@ object BenchmarkPage:
       spacer(8),
       btnRun.delegate,
       spacer(4),
-      btnClear.delegate
+      btnValidate.delegate,
+      spacer(4),
+      btnClear.delegate,
+      spacer(4),
+      exportRow.delegate
     )
 
-    // ── Table + summary box ───────────────────────────────────
     val tableBox = new VBox(0)
     tableBox.style = s"-fx-background-color: ${Theme.BgDeep};"
     VBox.setVgrow(table, Priority.Always)
     HBox.setHgrow(tableBox, Priority.Always)
     tableBox.children.addAll(table.delegate, summaryBox.delegate)
 
-    val mainRow = new HBox
-    VBox.setVgrow(mainRow, Priority.Always)
-    mainRow.children.addAll(configPanel.delegate, tableBox.delegate)
+    val runPage = new HBox
+    runPage.style = s"-fx-background-color: ${Theme.BgDeep};"
+    VBox.setVgrow(runPage, Priority.Always)
+    runPage.children.addAll(configPanel.delegate, tableBox.delegate)
+
+    val analysisPage = BenchmarkAnalysisPage.build(results)
+
+    val pageArea = new StackPane
+    pageArea.style = s"-fx-background-color: ${Theme.BgDeep};"
+    VBox.setVgrow(pageArea, Priority.Always)
+
+    def makeSwitch(label: String): (VBox, Label, Region) =
+      val lbl = new Label(label)
+      lbl.style   = Theme.labelStyle(11, Theme.TextDim)
+      lbl.padding = Insets(0, 6, 0, 6)
+      val ind = new Region
+      ind.prefHeight = 2; ind.maxWidth = Double.MaxValue
+      ind.style = "-fx-background-color: transparent;"
+      val tab = new VBox(0)
+      tab.alignment = Pos.Center; tab.prefHeight = 36
+      tab.padding   = Insets(0, 14, 0, 14)
+      tab.style     = "-fx-cursor: hand;"
+      tab.children.addAll(lbl.delegate, ind)
+      (tab, lbl, ind)
+
+    val (runTab,      runLbl,      runInd)      = makeSwitch("⚙  RUN")
+    val (analysisTab, analysisLbl, analysisInd) = makeSwitch("📈  ANALYSIS")
+
+    def activateSwitch(
+                        activeTab: VBox, activeLbl: Label, activeInd: Region,
+                        inactiveTab: VBox, inactiveLbl: Label, inactiveInd: Region
+                      ): Unit =
+      activeLbl.style    = Theme.labelStyle(11, Theme.AccentPrimary)
+      activeInd.style    = s"-fx-background-color: ${Theme.AccentPrimary};"
+      activeTab.style    = s"-fx-cursor: hand; -fx-background-color: ${Theme.BgBase};"
+      inactiveLbl.style  = Theme.labelStyle(11, Theme.TextDim)
+      inactiveInd.style  = "-fx-background-color: transparent;"
+      inactiveTab.style  = "-fx-cursor: hand;"
+
+    def showRun(): Unit =
+      pageArea.children.clear()
+      pageArea.children.add(runPage.delegate)
+      activateSwitch(runTab, runLbl, runInd, analysisTab, analysisLbl, analysisInd)
+
+    def showAnalysis(): Unit =
+      pageArea.children.clear()
+      pageArea.children.add(analysisPage.delegate)
+      activateSwitch(analysisTab, analysisLbl, analysisInd, runTab, runLbl, runInd)
+
+    runTab.delegate.setOnMouseClicked(_ => showRun())
+    analysisTab.delegate.setOnMouseClicked(_ => showAnalysis())
+
+    val switchBar = new HBox(0)
+    switchBar.prefHeight = 36
+    switchBar.alignment  = Pos.CenterLeft
+    switchBar.padding    = Insets(0, 0, 0, 8)
+    switchBar.style      = s"-fx-background-color: ${Theme.BgBase}; " +
+      s"-fx-border-color: ${Theme.BgBorder}; -fx-border-width: 0 0 1 0;"
+    switchBar.children.addAll(runTab.delegate, analysisTab.delegate)
+
+    showRun()
 
     val page = new BorderPane
     page.style  = s"-fx-background-color: ${Theme.BgDeep};"
-    page.center = mainRow
+    page.top    = switchBar
+    page.center = pageArea
     page

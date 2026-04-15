@@ -3,18 +3,19 @@ package ui
 import app.AppState
 import engine.AnimationEngine
 import model.ArrayGenerator
-import scalafx.scene.canvas.Canvas
+import scalafx.scene.canvas.{Canvas, GraphicsContext}
 import scalafx.scene.paint.Color
 
 class VisualizerPanel(state: AppState):
 
   private var array: Array[Int]       = generateArray()
+  private var cachedMax: Double       = array.max.toDouble
   private var highlightA: Option[Int] = None
   private var highlightB: Option[Int] = None
   private val sortedSet               = collection.mutable.Set.empty[Int]
 
   val canvas = new Canvas(10, 10)
-  val gc     = canvas.graphicsContext2D
+  val gc: GraphicsContext = canvas.graphicsContext2D
 
   private val realEngine: AnimationEngine = new AnimationEngine(
     state,
@@ -25,7 +26,11 @@ class VisualizerPanel(state: AppState):
     },
     onHighlight = (a, b) => { highlightA = a; highlightB = b; forceRedraw() },
     onSorted    = idx   => { sortedSet += idx; forceRedraw() },
-    onSet       = (idx, value) => { array(idx) = value; forceRedraw() },
+    onSet       = (idx, value) => {
+      array(idx) = value
+      if value.toDouble > cachedMax then cachedMax = value.toDouble
+      forceRedraw()
+    },
     onDone      = () => {
       sortedSet.clear()
       sortedSet ++= array.indices
@@ -51,6 +56,7 @@ class VisualizerPanel(state: AppState):
   def resetArray(): Unit =
     realEngine.stop()
     array = generateArray()
+    cachedMax = array.max.toDouble
     sortedSet.clear(); highlightA = None; highlightB = None
     state.comparisons.value = 0; state.swaps.value = 0; state.elapsedMs.value = 0
     state.statusMessage.value = "Ready"
@@ -76,7 +82,7 @@ class VisualizerPanel(state: AppState):
     if array.isEmpty then return
     val n       = array.length
     val barW    = (w / n).max(1)
-    val maxV    = array.max.toDouble
+    val maxV    = cachedMax
     val gap     = if n <= 100 then 1.0 else 0.0
 
     for i <- array.indices do
