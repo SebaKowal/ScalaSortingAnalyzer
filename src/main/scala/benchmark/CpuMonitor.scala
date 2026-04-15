@@ -16,7 +16,7 @@ object CpuMonitor:
 
   /** Returns (cpuTimeNs, userTimeNs) for current thread */
   def currentThreadTimes(): (Long, Long) =
-    val tid = Thread.currentThread().threadId()
+    val tid = Thread.currentThread().getId()
     val cpu  = if threadMx.isThreadCpuTimeEnabled then
       threadMx.getThreadCpuTime(tid).max(0)
     else 0L
