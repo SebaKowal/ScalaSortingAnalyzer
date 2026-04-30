@@ -120,16 +120,15 @@ object PureSorting:
   // ── QuickSort ─────────────────────────────────────────────────
   // O(n log n) avg, O(n²) worst — randomized pivot eliminates worst case in practice
   // Iterative with explicit stack to avoid JVM stack overflow on large inputs
+  private val threadLocalStack: ThreadLocal[Array[Int]] =
+    ThreadLocal.withInitial(() => new Array[Int](200_002))  // max N=100k
+
   def quickSort(a: Array[Int]): Unit =
     if a.length > 1 then
-      quickSortRange(a, 0, a.length - 1)
+      quickSortRange(a, 0, a.length - 1, threadLocalStack.get())
 
-  private def quickSortRange(a: Array[Int], lo: Int, hi: Int): Unit =
-    // Iterative quicksort using an explicit stack
-    // Eliminates stack overflow risk and reduces function call overhead
-    val stack = new Array[Int]((hi - lo + 1) * 2)
-    var top   = -1
-
+  private def quickSortRange(a: Array[Int], lo: Int, hi: Int, stack: Array[Int]): Unit =
+    var top = -1
     top += 1; stack(top) = lo
     top += 1; stack(top) = hi
 

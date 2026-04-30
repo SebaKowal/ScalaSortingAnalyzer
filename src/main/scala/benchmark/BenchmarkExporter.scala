@@ -3,6 +3,8 @@ package benchmark
 import java.io.{File, PrintWriter}
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import monitoring.{HardwareInfo as MonitoringHardwareInfo, ExcelReporter}
+import scala.util.Try
 
 object BenchmarkExporter:
 
@@ -17,11 +19,33 @@ object BenchmarkExporter:
 
   def exportCsv(results: Seq[BenchmarkResult], dir: String = "."): String =
     val file = new File(s"$dir/benchmark_$timestamp.csv")
-    val pw   = new PrintWriter(file)
+    val pw   = new PrintWriter(file, "UTF-8")
     try
-      writeHardwareMetadata(pw, HardwareInfo.snapshot(), "# ")
-      pw.println("#")
-      // Header
+      // Write UTF-8 BOM for Excel compatibility
+      pw.write('\ufeff')
+
+      // Get comprehensive hardware profile
+      val hardwareProfile = MonitoringHardwareInfo.collectProfileSafely()
+      val hardwareRows = ExcelReporter.prepareDataRows(hardwareProfile)
+
+      // Write hardware profile section
+      pw.println("Parametr;Wartość;Jednostka")
+      hardwareRows.foreach { row =>
+        val formattedRow = row.map {
+          case s: String => s""""${s.replace("\"", "\"\"")}""""
+          case n: Number => n.toString
+          case b: Boolean => if b then "Tak" else "Nie"
+          case other => other.toString
+        }
+        pw.println(formattedRow.mkString(";"))
+      }
+
+      // Separator between hardware and benchmark data
+      pw.println("\"\";\"\";\"\"")
+      pw.println("\"=== WYNIKI BENCHMARKÓW ===\";\"\";\"\"")
+      pw.println("\"\";\"\";\"\"")
+
+      // Write benchmark results header
       pw.println(
         "algoName,variant,pattern,size,isWarm,timeNs,timeMeanNs,timeMedianNs," +
           "timeP90Ns,timeP95Ns,timeP99Ns,timeMinNs,timeMaxNs,timeStdDevNs," +
@@ -29,6 +53,8 @@ object BenchmarkExporter:
           "heapDeltaMb,allocRateMbS,gcCollections,gcPauseMs," +
           "cpuTimeNs,userTimeNs,cpuPercent,isSorted,isStable,failureMsg"
       )
+
+      // Write benchmark results
       results.foreach { r =>
         pw.println(Seq(
           r.algoName, r.variant, r.pattern, r.size, r.isWarm,
@@ -112,3 +138,14 @@ object BenchmarkExporter:
       file.getAbsolutePath
     finally
       pw.close()
+
+  /**
+   * Export comprehensive hardware profile to Excel file.
+   * Used for baseline documentation before benchmarking.
+   */
+  def exportHardwareProfileToExcel(dir: String = "."): Try[String] =
+    Try {
+      val profile = MonitoringHardwareInfo.collectProfileSafely()
+      val fileName = s"$dir/hardware_profile_$timestamp.csv"
+      ExcelReporter.exportToExcel(profile, fileName).get
+    }
