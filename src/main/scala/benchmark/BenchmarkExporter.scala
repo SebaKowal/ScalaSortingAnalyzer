@@ -9,10 +9,18 @@ object BenchmarkExporter:
   private def timestamp: String =
     LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
 
+  private def writeHardwareMetadata(pw: java.io.PrintWriter, hw: HardwareInfo.Snapshot, prefix: String): Unit =
+    pw.println(s"${prefix}os: ${hw.osName} ${hw.osVersion} (${hw.osArch})")
+    pw.println(s"${prefix}cpu: ${hw.cpuName} (${hw.cpuLogicalCores} logical cores)")
+    pw.println(s"${prefix}ram_total_mb: ${hw.totalRamMb}")
+    pw.println(s"${prefix}jvm: ${hw.jvmName} ${hw.jvmVersion} (heap max ${hw.jvmHeapMaxMb} MB)")
+
   def exportCsv(results: Seq[BenchmarkResult], dir: String = "."): String =
     val file = new File(s"$dir/benchmark_$timestamp.csv")
     val pw   = new PrintWriter(file)
     try
+      writeHardwareMetadata(pw, HardwareInfo.snapshot(), "# ")
+      pw.println("#")
       // Header
       pw.println(
         "algoName,variant,pattern,size,isWarm,timeNs,timeMeanNs,timeMedianNs," +
@@ -44,7 +52,17 @@ object BenchmarkExporter:
     val file = new File(s"$dir/benchmark_$timestamp.json")
     val pw   = new PrintWriter(file)
     try
-      pw.println("[")
+      val hw = HardwareInfo.snapshot()
+      pw.println("{")
+      pw.println(s"""  "hardware": {""")
+      pw.println(s"""    "os": "${hw.osName} ${hw.osVersion} (${hw.osArch})",""")
+      pw.println(s"""    "cpu": "${hw.cpuName.replace("\"", "\\\"")}",""")
+      pw.println(s"""    "cpuLogicalCores": ${hw.cpuLogicalCores},""")
+      pw.println(s"""    "ramTotalMb": ${hw.totalRamMb},""")
+      pw.println(s"""    "jvm": "${hw.jvmName} ${hw.jvmVersion}",""")
+      pw.println(s"""    "jvmHeapMaxMb": ${hw.jvmHeapMaxMb}""")
+      pw.println(s"""  },""")
+      pw.println(s"""  "results": [""")
       results.zipWithIndex.foreach { (r, idx) =>
         val comma = if idx < results.size - 1 then "," else ""
         pw.println(s"""  {
@@ -89,7 +107,8 @@ object BenchmarkExporter:
                       |    }
                       |  }$comma""".stripMargin)
       }
-      pw.println("]")
+      pw.println("  ]")
+      pw.println("}")
       file.getAbsolutePath
     finally
       pw.close()

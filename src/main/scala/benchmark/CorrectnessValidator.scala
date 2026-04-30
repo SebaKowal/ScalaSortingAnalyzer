@@ -1,13 +1,17 @@
 package benchmark
 
-import model.{AlgorithmType, ArrayGenerator, GeneratorType, SortStep}
-import algorithms.AlgorithmRegistry
-import java.util.concurrent.{Callable, FutureTask, TimeUnit}
-import java.util.concurrent.TimeoutException
+import algorithms.pure.{PureAlgorithmRegistry, PureSorting}
+import model.{AlgorithmType, ArrayGenerator, GeneratorType}
 
-/** Validates algorithm correctness before any benchmarking.
- *  Returns None if correct, Some(errorMessage) if not. */
+/**
+ * Validates pure algorithm implementations against reference sort.
+ * Run before any benchmarking — never benchmark incorrect code.
+ *
+ * Timeout per run prevents infinite loops from hanging the validator.
+ */
 object CorrectnessValidator:
+
+  private val TimeoutMs = 10_000L
 
   case class ValidationResult(
                                algoName:  String,
@@ -15,111 +19,91 @@ object CorrectnessValidator:
                                size:      Int,
                                passed:    Boolean,
                                message:   String,
-                               inputSnap: Array[Int] = Array.empty  // first 20 elements for diagnosis
+                               inputSnap: Array[Int] = Array.empty
                              )
 
-  /** Run full correctness suite — all algos, multiple patterns, edge cases */
   def validateAll(): Seq[ValidationResult] =
     val results = collection.mutable.ArrayBuffer.empty[ValidationResult]
 
-    // Edge cases always checked
     val edgeCases: Seq[(String, Array[Int])] = Seq(
       ("empty",          Array.empty[Int]),
       ("single",         Array(42)),
       ("two_sorted",     Array(1, 2)),
       ("two_reversed",   Array(2, 1)),
-      ("all_equal",      Array(5, 5, 5, 5, 5)),
+      ("all_equal",      Array(7, 7, 7, 7, 7)),
       ("two_equal",      Array(3, 3)),
       ("already_sorted", Array(1, 2, 3, 4, 5, 6, 7, 8)),
       ("reverse_sorted", Array(8, 7, 6, 5, 4, 3, 2, 1)),
-      ("duplicates",     Array(3, 1, 4, 1, 5, 9, 2, 6, 5, 3))
+      ("duplicates",     Array(3, 1, 4, 1, 5, 9, 2, 6, 5, 3)),
+      ("large_equal",    Array.fill(100)(42)),
+      ("two_alternating",Array.tabulate(100)(i => if i % 2 == 0 then 1 else 2))
     )
 
     AlgorithmType.values.foreach { algo =>
-      // Edge cases
-      edgeCases.foreach { (name, arr) =>
-        results += validate(algo, name, arr)
+      edgeCases.foreach { (label, arr) =>
+        results += validateWithTimeout(algo, label, arr)
       }
-      // Standard sizes
-      Seq(10, 100, 500).foreach { size =>
+      // Standard sizes with all generators
+      Seq(10, 100, 1000).foreach { size =>
         GeneratorType.values.foreach { gen =>
           val arr = ArrayGenerator.generate(gen, size)
-          results += validate(algo, s"${gen.label}/n=$size", arr)
+          results += validateWithTimeout(algo, s"${gen.label}/n=$size", arr)
         }
       }
     }
     results.toSeq
 
-  private val ValidationTimeoutSec = 5L
-
-  def validate(
-                algo:    AlgorithmType,
-                label:   String,
-                input:   Array[Int]
-              ): ValidationResult =
-    val task = new FutureTask[ValidationResult](() => validateUnsafe(algo, label, input))
-    val thread = new Thread(task, "validator-worker")
-    thread.setDaemon(true)
-    thread.start()
+  private def validateWithTimeout(
+                                   algo:  AlgorithmType,
+                                   label: String,
+                                   input: Array[Int]
+                                 ): ValidationResult =
+    import java.util.concurrent.{FutureTask, TimeUnit}
+    val task = new FutureTask[ValidationResult](() => validatePure(algo, label, input))
+    val t    = new Thread(task, s"validator-${algo.label}")
+    t.setDaemon(true)
+    t.start()
     try
-      task.get(ValidationTimeoutSec, TimeUnit.SECONDS)
+      task.get(TimeoutMs, TimeUnit.MILLISECONDS)
     catch
-      case _: TimeoutException =>
-        thread.interrupt()
+      case _: java.util.concurrent.TimeoutException =>
+        t.interrupt()
         ValidationResult(algo.label, label, input.length,
-          passed = false, s"Timed out after ${ValidationTimeoutSec}s — possible infinite loop")
+          passed  = false,
+          message = s"Timed out after ${TimeoutMs}ms — possible infinite loop")
       case ex: Exception =>
         ValidationResult(algo.label, label, input.length,
-          passed = false, s"Unexpected error: ${ex.getCause match
-            case null => ex.getMessage
-            case c    => c.getMessage
-          }")
+          passed  = false,
+          message = s"Exception: ${Option(ex.getCause).getOrElse(ex).getMessage}")
 
-  private def validateUnsafe(
-                algo:    AlgorithmType,
-                label:   String,
-                input:   Array[Int]
-              ): ValidationResult =
+  private def validatePure(
+                            algo:  AlgorithmType,
+                            label: String,
+                            input: Array[Int]
+                          ): ValidationResult =
+    val sortFn  = PureAlgorithmRegistry.get(algo)
     val working = input.clone()
 
     try
-      AlgorithmRegistry.get(algo).steps(input).foreach {
-        case SortStep.Swap(i, j)      =>
-          val tmp = working(i); working(i) = working(j); working(j) = tmp
-        case SortStep.Set(idx, value) =>
-          working(idx) = value
-        case _ =>
-      }
+      sortFn(working)  // Sort in place
 
       val reference = input.clone()
       java.util.Arrays.sort(reference)
 
-      val matchesReference = java.util.Arrays.equals(working, reference)
-      val isSortedAsc      = checkSortedAsc(working)
-
-      if matchesReference && isSortedAsc then
+      if java.util.Arrays.equals(working, reference) then
         ValidationResult(algo.label, label, input.length, passed = true, "OK")
       else
-        val snap    = input.take(20).mkString("[", ", ", if input.length > 20 then "…]" else "]")
-        val gotSnap = working.take(20).mkString("[", ", ", if working.length > 20 then "…]" else "]")
-        val msg =
-          if !matchesReference then
-            s"Output does not match reference sort. Input: $snap | Got: $gotSnap"
-          else
-            s"Output is not ascending. Got: $gotSnap"
+        val inp = input.take(20).mkString("[", ", ", if input.length > 20 then "…]" else "]")
+        val got = working.take(20).mkString("[", ", ", if working.length > 20 then "…]" else "]")
+        val exp = reference.take(20).mkString("[", ", ", if reference.length > 20 then "…]" else "]")
         ValidationResult(algo.label, label, input.length,
-          passed = false, msg, input.take(20))
-
+          passed     = false,
+          message    = s"Wrong output.\n  Input:    $inp\n  Got:      $got\n  Expected: $exp",
+          inputSnap  = input.take(20))
     catch
       case ex: Exception =>
         val snap = input.take(20).mkString("[", ", ", "]")
         ValidationResult(algo.label, label, input.length,
-          passed = false, s"Exception: ${ex.getMessage} | Input: $snap", input.take(20))
-
-  private def checkSortedAsc(arr: Array[Int]): Boolean =
-    if arr.length <= 1 then return true
-    var i = 1
-    while i < arr.length do
-      if arr(i) < arr(i - 1) then return false
-      i += 1
-    true
+          passed    = false,
+          message   = s"${ex.getClass.getSimpleName}: ${ex.getMessage} | Input: $snap",
+          inputSnap = input.take(20))
