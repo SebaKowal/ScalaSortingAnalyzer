@@ -115,7 +115,7 @@ class RightPanel(state: AppState):
   private val cmpHdr    = hdr("COMPLEXITY")
   private val descHdr   = hdr("DESCRIPTION")
   private val timeHdr   = hdr("TIME NOTES")
-  private val spaceHdr  = hdr("SPACEE")
+  private val spaceHdr  = hdr("SPACE")
   private val legendHdr = hdr("LEGEND")
 
   VBox.setMargin(cmpHdr,    Insets(10, 0, 4, 0))
