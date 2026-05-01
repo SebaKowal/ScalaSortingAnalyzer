@@ -1,6 +1,5 @@
 package ui.pages
 
-import benchmark.BenchmarkResult
 import ui.Theme
 import scalafx.collections.ObservableBuffer
 import scalafx.geometry.{Insets, Pos}
@@ -10,6 +9,7 @@ import scalafx.Includes.*
 import scalafx.application.Platform
 import javafx.scene.chart.{LineChart, BarChart, XYChart, NumberAxis, CategoryAxis}
 import javafx.scene.layout.GridPane
+import benchmark.BenchmarkResult
 
 object BenchmarkAnalysisPage:
 

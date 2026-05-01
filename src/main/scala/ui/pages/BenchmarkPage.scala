@@ -284,14 +284,14 @@ object BenchmarkPage:
       }.toMap
 
     val sizeChecks: Map[Int, CheckBox] =
-      Seq(100, 500, 1000, 5000, 10000).map { n =>
+      Seq(100, 500, 1000, 5000, 10000, 100000, 1000000).map { n =>
         val cb = new CheckBox(n.toString)
         cb.selected = n <= 1000
         cb.style = Theme.labelStyle(11, Theme.TextNormal)
         n -> cb
       }.toMap
 
-    val warmupCheck = new CheckBox("JIT Warmup (500 throwaway runs)")
+    val warmupCheck = new CheckBox("JIT Warmup (5000 throwaway runs)")
     warmupCheck.selected = true
     warmupCheck.style = Theme.labelStyle(11, Theme.TextNormal)
 
@@ -318,7 +318,7 @@ object BenchmarkPage:
     btnClear.style    = Theme.buttonSecondary
     btnClear.maxWidth = Double.MaxValue
 
-    val btnExportCsv = new Button("⬇  CSV")
+    val btnExportCsv = new Button("⬇  EXCEL")
     btnExportCsv.style    = Theme.buttonSecondary
     btnExportCsv.maxWidth = Double.MaxValue
     btnExportCsv.disable  = true
@@ -345,8 +345,8 @@ object BenchmarkPage:
 
     btnExportCsv.onAction = _ =>
       Future {
-        val path = BenchmarkExporter.exportCsv(results.toSeq)
-        Platform.runLater { progressLbl.text = s"CSV exported: $path" }
+        val path = BenchmarkExporter.exportExcel(results.toSeq)
+        Platform.runLater { progressLbl.text = s"Excel exported: $path" }
       }
 
     btnExportJson.onAction = _ =>
@@ -400,13 +400,24 @@ object BenchmarkPage:
         val total = algos.size * gens.size * sizes.size
         var done  = 0
         Future {
+          // ── Global warmup phase: warm up all algorithms first ────
+          if doWarmup then
+            for
+              size <- sizes
+              gen  <- gens
+            do
+              BenchmarkRunner.globalWarmup(algos, gen, size, msg => Platform.runLater { progressLbl.text = msg })
+              System.gc()
+              Thread.sleep(100)
+
+          // ── Measurement phase: run all measurements ────
           for
             size <- sizes
-            algo <- algos
             gen  <- gens
+            algo <- algos
           do
             val runs = BenchmarkRunner.run(
-              BenchmarkRunner.RunConfig(algo, gen, size, doWarmup),
+              BenchmarkRunner.RunConfig(algo, gen, size, doWarmup, skipColdRun = doWarmup),
               msg => Platform.runLater { progressLbl.text = msg }
             )
             done += 1

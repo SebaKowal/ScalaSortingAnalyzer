@@ -11,12 +11,14 @@ val jfxClassifier = System.getProperty("os.name").toLowerCase match {
 val jfxModules = Seq("base", "controls", "fxml", "graphics", "media", "swing")
 
 lazy val root = (project in file("."))
+  .enablePlugins(JmhPlugin)
   .settings(
     name := "ScalaSortingAnalyzer",
     fork := true,
     libraryDependencies ++= Seq(
       "org.scalafx"   %% "scalafx"   % "21.0.0-R32",
-      "org.scalatest" %% "scalatest" % "3.2.18" % Test
+      "org.scalatest" %% "scalatest" % "3.2.18" % Test,
+      "org.apache.poi" % "poi-ooxml" % "5.2.5"
     ),
     libraryDependencies ++= jfxModules.map { m =>
       "org.openjfx" % s"javafx-$m" % jfxVersion classifier jfxClassifier
@@ -67,5 +69,3 @@ lazy val root = (project in file("."))
       case _                                   => MergeStrategy.first
     }
   )
-
-enablePlugins(JmhPlugin)

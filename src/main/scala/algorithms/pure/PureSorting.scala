@@ -129,25 +129,63 @@ object PureSorting:
 
   private def quickSortRange(a: Array[Int], lo: Int, hi: Int, stack: Array[Int]): Unit =
     var top = -1
-    top += 1; stack(top) = lo
-    top += 1; stack(top) = hi
+    top += 1;
+    stack(top) = lo
+    top += 1;
+    stack(top) = hi
 
     while top >= 0 do
-      val h = stack(top); top -= 1
-      val l = stack(top); top -= 1
+      val h = stack(top);
+      top -= 1
+      val l = stack(top);
+      top -= 1
 
-      if h - l < 16 then
+      if h - l < 24 then
         insertionSortRange(a, l, h)
       else
-        val p = partition(a, l, h)
-        // Push larger partition first so smaller is processed first
-        // This keeps stack depth at O(log n)
-        if p - 1 > l then
-          top += 1; stack(top) = l
-          top += 1; stack(top) = p - 1
-        if p + 1 < h then
-          top += 1; stack(top) = p + 1
-          top += 1; stack(top) = h
+        val p = partitionHoare(a, l, h)
+
+        if p > l then
+          if (p - l) > (h - p) then
+            top += 1;
+            stack(top) = l;
+            top += 1;
+            stack(top) = p
+            top += 1;
+            stack(top) = p + 1;
+            top += 1;
+            stack(top) = h
+          else
+            top += 1;
+            stack(top) = p + 1;
+            top += 1;
+            stack(top) = h
+            top += 1;
+            stack(top) = l;
+            top += 1;
+            stack(top) = p
+
+  private def partitionHoare(a: Array[Int], lo: Int, hi: Int): Int =
+    val mid = lo + (hi - lo) / 2
+
+    // Median-of-three (inline dla wydajności)
+    if a(mid) < a(lo) then swap(a, mid, lo)
+    if a(hi) < a(lo) then swap(a, hi, lo)
+    if a(mid) < a(hi) then swap(a, mid, hi)
+
+    val pivot = a(mid) // Środkowy element jako piwot po sortowaniu trójki
+    var i = lo - 1
+    var j = hi + 1
+
+    while true do
+      i += 1
+      while a(i) < pivot do i += 1
+      j -= 1
+      while a(j) > pivot do j -= 1
+
+      if i >= j then return j
+      swap(a, i, j)
+    j
 
   private def partition(a: Array[Int], lo: Int, hi: Int): Int =
     // Median-of-three pivot — reduces worst case probability significantly

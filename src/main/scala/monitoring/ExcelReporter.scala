@@ -1,111 +1,207 @@
 package monitoring
 
-import java.io.{File, PrintWriter}
+import java.io.{File, FileOutputStream}
+import java.util.zip.{ZipEntry, ZipOutputStream}
 import scala.util.{Try, Using}
+import benchmark.BenchmarkResult
 
-/**
- * Generates CSV reports of hardware profiles that can be opened in Excel.
- * Uses semicolon separation for better Excel compatibility.
- */
 object ExcelReporter:
 
-  /**
-   * Export hardware profile to CSV file (Excel-compatible).
-   *
-   * @param profile Hardware profile to export
-   * @param outputPath Path where CSV file will be saved
-   * @return Try containing the file path if successful
-   */
-  def exportToExcel(profile: HardwareProfile, outputPath: String = "hardware-profile.csv"): Try[String] =
-    Try {
-      val file = new File(outputPath)
-      Option(file.getParentFile).foreach(_.mkdirs())
+  def exportToExcel(
+                     results: Seq[BenchmarkResult],
+                     hardware: HardwareProfile,
+                     outputPath: String = "benchmark-report.xlsx"
+                   ): Try[String] =
+    val file = new File(outputPath)
+    Option(file.getParentFile).foreach(_.mkdirs())
+    Using(new ZipOutputStream(new FileOutputStream(file))) { zos =>
+      // Required XLSX structure
+      writeEntry(zos, "[Content_Types].xml", contentTypes)
+      writeEntry(zos, "_rels/.rels", rels)
+      writeEntry(zos, "xl/workbook.xml", workbookXml)
+      writeEntry(zos, "xl/_rels/workbook.xml.rels", workbookRels)
+      writeEntry(zos, "xl/styles.xml", stylesXml)
 
-      Using.resource(new PrintWriter(file, "UTF-8")) { writer =>
-        // Write BOM for Excel UTF-8 recognition
-        writer.write('\ufeff')
-
-        // Write header
-        writer.println("Parametr;Wartość;Jednostka")
-
-        // Write data rows
-        val dataRows = prepareDataRows(profile)
-        dataRows.foreach { row =>
-          val formattedRow = row.map {
-            case s: String => s""""${s.replace("\"", "\"\"")}""""
-            case n: Number => n.toString
-            case b: Boolean => if b then "Tak" else "Nie"
-            case other => other.toString
-          }
-          writer.println(formattedRow.mkString(";"))
-        }
-      }
-
+      // Sheets
+      writeEntry(zos, "xl/worksheets/sheet1.xml", benchmarkSheet(results))
+      writeEntry(zos, "xl/worksheets/sheet2.xml", hardwareSheet(hardware))
       outputPath
     }
 
-  /**
-   * Prepare data rows from hardware profile in format: (Parameter, Value, Unit).
-   * Made public for access from BenchmarkExporter.
-   */
-  def prepareDataRows(profile: HardwareProfile): List[List[Any]] =
-    List(
-      // CPU Information
-      List("Procesor - Model", profile.cpuModel, ""),
-      List("Procesor - Producent", profile.cpuVendor, ""),
-      List("Procesor - Rdzenie fizyczne", profile.physicalCores, "szt."),
-      List("Procesor - Rdzenie logiczne", profile.logicalCores, "szt."),
-      List("Procesor - Aktualna częstotliwość", f"${profile.currentFrequencyMhz}%.2f", "MHz"),
-      List("Procesor - Maksymalna częstotliwość", f"${profile.maxFrequencyMhz}%.2f", "MHz"),
-      List("Procesor - Identyfikator", profile.processorId, ""),
-      List("Procesor - Cache L1", profile.l1CacheKb.getOrElse("N/A"), "KB"),
-      List("Procesor - Cache L2", profile.l2CacheKb.getOrElse("N/A"), "KB"),
-      List("Procesor - Cache L3", profile.l3CacheKb.getOrElse("N/A"), "KB"),
-      List("Procesor - SMT/Hyper-Threading", profile.smtEnabled.map(b => if b then "Włączone" else "Wyłączone").getOrElse("N/A"), ""),
+  def prepareHardwareRows(profile: HardwareProfile): Seq[Seq[Any]] =
+    prepareHardwareData(profile)
 
-      List("", "", ""), // Spacer
+  private def writeEntry(zos: ZipOutputStream, name: String, content: String): Unit =
+    zos.putNextEntry(new ZipEntry(name))
+    zos.write(content.getBytes("UTF-8"))
+    zos.closeEntry()
 
-      // RAM Information
-      List("Pamięć RAM - Całkowita", f"${profile.totalRamGb}%.2f", "GB"),
-      List("Pamięć RAM - Dostępna", f"${profile.availableRamGb}%.2f", "GB"),
-      List("Pamięć RAM - Typ", profile.ramType, ""),
-      List("Pamięć RAM - Prędkość", profile.ramSpeedMts.getOrElse("N/A"), "MT/s"),
+  // ---------------------------
+  // XML TEMPLATES
+  // ---------------------------
 
-      List("", "", ""), // Spacer
+  private val contentTypes =
+    """<?xml version="1.0" encoding="UTF-8"?>
+      |<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+      |  <Default Extension="xml" ContentType="application/xml"/>
+      |  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+      |  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+      |  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+      |  <Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+      |  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+      |</Types>
+      |""".stripMargin
 
-      // OS Information
-      List("System operacyjny - Nazwa", profile.osName, ""),
-      List("System operacyjny - Wersja", profile.osVersion, ""),
-      List("System operacyjny - Architektura", profile.osArch, "bit"),
+  private val rels =
+    """<?xml version="1.0" encoding="UTF-8"?>
+      |<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+      |  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+      |</Relationships>
+      |""".stripMargin
 
-      List("", "", ""), // Spacer
+  private val workbookXml =
+    """<?xml version="1.0" encoding="UTF-8"?>
+      |<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+      |          xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+      |  <sheets>
+      |    <sheet name="Benchmark" sheetId="1" r:id="rId1"/>
+      |    <sheet name="Hardware" sheetId="2" r:id="rId2"/>
+      |  </sheets>
+      |</workbook>
+      |""".stripMargin
 
-      // JVM Information
-      List("JVM - Producent", profile.jvmVendor, ""),
-      List("JVM - Wersja", profile.jvmVersion, ""),
-      List("JVM - Runtime", profile.jvmRuntime, ""),
-      List("JVM - Parametr Xmx (max. pamięć)", profile.jvmXmxMb, "MB"),
-      List("JVM - Parametr Xms (init. pamięć)", profile.jvmXmsMb, "MB"),
-      List("JVM - Garbage Collector", profile.gcType, ""),
+  private val workbookRels =
+    """<?xml version="1.0" encoding="UTF-8"?>
+      |<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+      |  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+      |  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>
+      |  <Relationship Id="styles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+      |</Relationships>
+      |""".stripMargin
 
-      List("", "", ""), // Spacer
+  private val stylesXml =
+    """<?xml version="1.0" encoding="UTF-8"?>
+      |<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+      |  <fonts count="1"><font><sz val="11"/></font></fonts>
+      |  <fills count="1"><fill><patternFill patternType="none"/></fill></fills>
+      |  <borders count="1"><border/></borders>
+      |  <cellStyleXfs count="1"><xf/></cellStyleXfs>
+      |  <cellXfs count="1"><xf xfId="0"/></cellXfs>
+      |</styleSheet>
+      |""".stripMargin
 
-      // BIOS/Motherboard Information
-      List("BIOS - Producent", profile.biosManufacturer.getOrElse("N/A"), ""),
-      List("BIOS - Model płyty głównej", profile.biosModel.getOrElse("N/A"), ""),
-      List("BIOS - Wersja", profile.biosVersion.getOrElse("N/A"), ""),
+  // ---------------------------
+  // SHEET 1: Benchmark
+  // ---------------------------
 
-      List("", "", ""), // Spacer
+  private def benchmarkSheet(results: Seq[BenchmarkResult]): String =
+    val header = Seq(
+      "Algorithm","Variant","Pattern","Size","Warm","Time Mean (ns)","Time Median (ns)",
+      "Time P90 (ns)","Time P95 (ns)","Time P99 (ns)","Time Min (ns)","Time Max (ns)",
+      "Time StdDev (ns)","Throughput (elem/ms)","Ops/sec","Comparisons","Swaps","Writes",
+      "Heap Δ (MB)","Alloc Rate (MB/s)","GC Collections","GC Pause (ms)","CPU Time (ns)",
+      "User Time (ns)","CPU %","Sorted","Failure Msg"
+    )
 
-      // Storage Information
-      List("Dyski - Liczba urządzeń", profile.storageDevices.length, "szt.")
-    ) ++ profile.storageDevices.zipWithIndex.flatMap { (device, idx) =>
-      List(
-        List(s"Dysk ${idx + 1} - Model", device.model, ""),
-        List(s"Dysk ${idx + 1} - Interfejs", device.interface, ""),
-        List(s"Dysk ${idx + 1} - Pojemność", device.capacityGb, "GB")
+    val rows =
+      results.map { r =>
+        Seq(
+          r.algoName, r.variant, r.pattern, r.size, r.isWarm,
+          r.timeMeanNs, r.timeMedianNs, r.timeP90Ns, r.timeP95Ns, r.timeP99Ns,
+          r.timeMinNs, r.timeMaxNs, r.timeStdDevNs, r.throughput, r.opsPerSec,
+          r.comparisons, r.swaps, r.writes, r.maxHeapMb, r.allocRateMbS,
+          r.gcCollections, r.gcPauseMs, r.cpuTimeNs, r.userTimeNs,
+          r.cpuPercent, r.isSorted, r.failureMsg
+        )
+      }
+
+    xmlSheet(header, rows)
+
+  // ---------------------------
+  // SHEET 2: Hardware
+  // ---------------------------
+
+  private def hardwareSheet(hw: HardwareProfile): String =
+    val rows = prepareHardwareData(hw)
+    xmlSheet(Seq("Parameter", "Value", "Unit"), rows)
+
+  // ---------------------------
+  // XML ROW BUILDER
+  // ---------------------------
+
+  private def xmlSheet(header: Seq[Any], rows: Seq[Seq[Any]]): String =
+    val headerRow = xmlRow(1, header)
+    val dataRows = rows.zipWithIndex.map { case (r, i) => xmlRow(i + 2, r) }.mkString
+
+    s"""<?xml version="1.0" encoding="UTF-8"?>
+       |<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+       |  <sheetData>
+       |    $headerRow
+       |    $dataRows
+       |  </sheetData>
+       |</worksheet>
+       |""".stripMargin
+
+  private def xmlRow(rowNum: Int, values: Seq[Any]): String =
+    val cells = values.zipWithIndex.map { case (v, col) =>
+      val colName = columnName(col + 1)
+      s"""<c r="$colName$rowNum" t="inlineStr"><is><t>${escape(v.toString)}</t></is></c>"""
+    }.mkString
+    s"<row r=\"$rowNum\">$cells</row>"
+
+  private def columnName(n: Int): String =
+    if n <= 26 then (('A' + n - 1).toChar).toString
+    else columnName((n - 1) / 26) + columnName((n - 1) % 26 + 1)
+
+  private def escape(s: String): String =
+    s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+  // ---------------------------
+  // HARDWARE DATA
+  // ---------------------------
+
+  private def prepareHardwareData(p: HardwareProfile): Seq[Seq[Any]] =
+    Seq(
+      Seq("CPU Model", p.cpuModel, ""),
+      Seq("CPU Vendor", p.cpuVendor, ""),
+      Seq("Physical Cores", p.physicalCores, "cores"),
+      Seq("Logical Cores", p.logicalCores, "cores"),
+      Seq("Current Frequency", p.currentFrequencyMhz, "MHz"),
+      Seq("Max Frequency", p.maxFrequencyMhz, "MHz"),
+      Seq("Processor ID", p.processorId, ""),
+      Seq("L1 Cache", p.l1CacheKb.getOrElse("N/A"), "KB"),
+      Seq("L2 Cache", p.l2CacheKb.getOrElse("N/A"), "KB"),
+      Seq("L3 Cache", p.l3CacheKb.getOrElse("N/A"), "KB"),
+      Seq("SMT/Hyper-Threading", p.smtEnabled.map(if _ then "Enabled" else "Disabled").getOrElse("Unknown"), ""),
+      Seq("", "", ""),
+      Seq("Total RAM", p.totalRamGb, "GB"),
+      Seq("Available RAM", p.availableRamGb, "GB"),
+      Seq("RAM Type", p.ramType, ""),
+      Seq("RAM Speed", p.ramSpeedMts.getOrElse("Unknown"), "MT/s"),
+      Seq("", "", ""),
+      Seq("OS Name", p.osName, ""),
+      Seq("OS Version", p.osVersion, ""),
+      Seq("OS Architecture", p.osArch, "bit"),
+      Seq("", "", ""),
+      Seq("JVM Vendor", p.jvmVendor, ""),
+      Seq("JVM Version", p.jvmVersion, ""),
+      Seq("JVM Runtime", p.jvmRuntime, ""),
+      Seq("JVM Max Memory (Xmx)", p.jvmXmxMb, "MB"),
+      Seq("JVM Initial Memory (Xms)", p.jvmXmsMb, "MB"),
+      Seq("Garbage Collector", p.gcType, ""),
+      Seq("", "", ""),
+      Seq("BIOS Manufacturer", p.biosManufacturer.getOrElse("Unknown"), ""),
+      Seq("Motherboard Model", p.biosModel.getOrElse("Unknown"), ""),
+      Seq("BIOS Version", p.biosVersion.getOrElse("Unknown"), ""),
+      Seq("", "", ""),
+      Seq("Storage Devices", p.storageDevices.length, "devices")
+    ) ++ p.storageDevices.zipWithIndex.flatMap { case (d, i) =>
+      Seq(
+        Seq(s"Device ${i + 1} Model", d.model, ""),
+        Seq(s"Device ${i + 1} Interface", d.interface, ""),
+        Seq(s"Device ${i + 1} Capacity", d.capacityGb, "GB")
       )
-    } ++ List(
-      List("", "", ""), // Spacer
-      List("Data rejestracji", profile.capturedAt, "")
+    } ++ Seq(
+      Seq("", "", ""),
+      Seq("Snapshot Time", p.capturedAt, "")
     )
