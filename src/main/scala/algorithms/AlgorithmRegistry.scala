@@ -1,6 +1,8 @@
 package algorithms
 
-import model.AlgorithmType
+import algorithms.vis.{BubbleSort, CocktailSort, HeapSort, InsertionSort, MergeSort, QuickSort, SelectionSort, ShellSort}
+import ui.utils.AlgorithmType
+import algorithms.fullbenchmark.QuickSortFull
 
 object AlgorithmRegistry:
   val all: Map[AlgorithmType, SortAlgorithm] = Map(
@@ -11,7 +13,7 @@ object AlgorithmRegistry:
     AlgorithmType.QuickSort     -> QuickSort,
     AlgorithmType.HeapSort      -> HeapSort,
     AlgorithmType.ShellSort     -> ShellSort,
-    AlgorithmType.CocktailSort  -> CocktailSort
+    AlgorithmType.CocktailSort  -> CocktailSort,
   )
 
   def get(t: AlgorithmType): SortAlgorithm =

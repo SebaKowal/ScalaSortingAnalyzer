@@ -1,7 +1,8 @@
 package benchmark
 
-import algorithms.pure.{PureAlgorithmRegistry, PureSorting}
-import model.{AlgorithmType, ArrayGenerator, GeneratorType}
+import algorithms.purebenchmark.{PureAlgorithmRegistry, PureSorting}
+import model.{ArrayGenerator, GeneratorType}
+import ui.utils.AlgorithmType
 
 /**
  * Validates pure algorithm implementations against reference sort.

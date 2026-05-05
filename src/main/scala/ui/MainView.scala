@@ -1,10 +1,13 @@
 package ui
 
-import app.AppState
+import app.{AppRouter, AppState, Page}
 import benchmark.BenchmarkState
-import ui.pages.{AlgorithmsPage, BenchmarkAnalysisPage, BenchmarkPage, VisualizerPage}
 import scalafx.scene.layout.*
 import scalafx.Includes.*
+import ui.algorithms.AlgorithmsPage
+import ui.benchmarking.{BenchmarkAnalysisPage, BenchmarkPage}
+import ui.visualizer.VisualizerPage
+import ui.utils.{NavBar, Theme}
 
 object MainView:
   def apply(): BorderPane =
@@ -15,7 +18,7 @@ object MainView:
     val vizPage      = VisualizerPage.build(state)
     val algoPage     = AlgorithmsPage.build()
     val benchPage    = BenchmarkPage.build(BenchmarkState.results)
-    val analysisPage = BenchmarkAnalysisPage.build(BenchmarkState.results)
+    
 
     // Page container — swaps content on nav change
     val pageArea = new StackPane
@@ -28,7 +31,7 @@ object MainView:
         case Page.Visualizer  => vizPage.delegate
         case Page.Algorithms  => algoPage.delegate
         case Page.Benchmark   => benchPage.delegate
-        case Page.Analysis    => analysisPage.delegate
+        
       pageArea.children.add(node)
 
     showPage(AppRouter.currentPage.value)

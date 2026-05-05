@@ -1,5 +1,7 @@
 package benchmark
 
+import ui.utils.AlgorithmType
+
 object StabilityChecker:
 
   case class Tagged(value: Int, originalIndex: Int)
@@ -16,8 +18,8 @@ object StabilityChecker:
     }
 
   /** Whether the algorithm is stable by definition (preserves relative order of equal elements). */
-  def isAlgorithmStable(algo: model.AlgorithmType): Boolean =
-    import model.AlgorithmType.*
+  def isAlgorithmStable(algo: AlgorithmType): Boolean =
+    import ui.utils.AlgorithmType.*
     algo match
       case BubbleSort | InsertionSort | MergeSort | CocktailSort => true
       case SelectionSort | QuickSort | HeapSort | ShellSort       => false
