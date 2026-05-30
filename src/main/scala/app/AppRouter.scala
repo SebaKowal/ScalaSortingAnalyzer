@@ -3,7 +3,7 @@ package app
 import scalafx.beans.property.ObjectProperty
 
 enum Page:
-  case Visualizer, Algorithms, Benchmark
+  case Visualizer, Algorithms
 
 object AppRouter:
   val currentPage: ObjectProperty[Page] = ObjectProperty(Page.Visualizer)

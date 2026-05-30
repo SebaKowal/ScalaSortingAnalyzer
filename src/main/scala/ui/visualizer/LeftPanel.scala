@@ -2,14 +2,14 @@ package ui.visualizer
 
 import app.AppState
 import benchmark.SystemMonitor
-import model.GeneratorType
+import model.{AlgorithmType, GeneratorType}
 import scalafx.animation.{Animation, KeyFrame, Timeline}
 import scalafx.geometry.{Insets, Pos}
 import scalafx.scene.control.*
 import scalafx.scene.layout.*
 import scalafx.util.Duration
 import ui.visualizer.VisualizerPanel
-import ui.utils.{AlgorithmType, Theme}
+import ui.utils.Theme
 
 class LeftPanel(state: AppState, viz: VisualizerPanel):
 

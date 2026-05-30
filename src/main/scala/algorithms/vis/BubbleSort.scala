@@ -12,6 +12,7 @@ object BubbleSort extends SortAlgorithm:
     val n = a.length
     var swapped = true
     var end = n - 1
+
     while swapped do
       swapped = false
       for i <- 0 until end do

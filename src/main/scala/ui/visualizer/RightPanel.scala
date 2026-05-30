@@ -1,12 +1,12 @@
 package ui.visualizer
 
 import app.AppState
+import model.{AlgorithmDetail, AlgorithmInfo, AlgorithmType}
 import scalafx.Includes.*
 import scalafx.geometry.{Insets, Pos}
 import scalafx.scene.control.*
 import scalafx.scene.layout.*
-import ui.algorithms.{AlgorithmDetail, AlgorithmInfo}
-import ui.utils.{AlgorithmType, Theme}
+import ui.utils.Theme
 
 class RightPanel(state: AppState):
 

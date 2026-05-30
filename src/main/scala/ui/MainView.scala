@@ -1,11 +1,11 @@
 package ui
 
 import app.{AppRouter, AppState, Page}
-import benchmark.BenchmarkState
+//import benchmark.BenchmarkState
 import scalafx.scene.layout.*
 import scalafx.Includes.*
 import ui.algorithms.AlgorithmsPage
-import ui.benchmarking.{BenchmarkAnalysisPage, BenchmarkPage}
+//import ui.benchmarking.{BenchmarkAnalysisPage, BenchmarkPage}
 import ui.visualizer.VisualizerPage
 import ui.utils.{NavBar, Theme}
 
@@ -17,7 +17,7 @@ object MainView:
     // Build all pages once
     val vizPage      = VisualizerPage.build(state)
     val algoPage     = AlgorithmsPage.build()
-    val benchPage    = BenchmarkPage.build(BenchmarkState.results)
+    //val benchPage    = BenchmarkPage.build()
     
 
     // Page container — swaps content on nav change
@@ -30,7 +30,7 @@ object MainView:
       val node = page match
         case Page.Visualizer  => vizPage.delegate
         case Page.Algorithms  => algoPage.delegate
-        case Page.Benchmark   => benchPage.delegate
+        //case Page.Benchmark   => benchPage.delegate
         
       pageArea.children.add(node)
 

@@ -1,8 +1,7 @@
 package app
 
 import scalafx.beans.property.*
-import model.GeneratorType
-import ui.utils.AlgorithmType
+import model.{AlgorithmType, GeneratorType}
 
 class AppState:
   val arraySize: IntegerProperty      = IntegerProperty(50)

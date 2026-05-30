@@ -1,11 +1,12 @@
 package ui.algorithms
 
+import model.{AlgorithmDetail, AlgorithmInfo, AlgorithmType}
 import scalafx.Includes.*
 import scalafx.beans.property.ObjectProperty
 import scalafx.geometry.{Insets, Pos}
 import scalafx.scene.control.*
 import scalafx.scene.layout.*
-import ui.utils.{AlgorithmType, Theme}
+import ui.utils.Theme
 
 object AlgorithmsPage:
 
@@ -193,14 +194,20 @@ object AlgorithmsPage:
         pseudoWrap.style   = s"-fx-background-color: ${Theme.BgDeep};"
         pseudoWrap.children.add(codeBlock(detail.pseudocode).delegate)
 
-        val scalaWrap = new VBox(0)
-        scalaWrap.padding = Insets(12)
-        scalaWrap.style   = s"-fx-background-color: ${Theme.BgDeep};"
-        scalaWrap.children.add(codeBlock(detail.scalaCode).delegate)
+        val scalaWrapI = new VBox(0)
+        scalaWrapI.padding = Insets(12)
+        scalaWrapI.style   = s"-fx-background-color: ${Theme.BgDeep};"
+        scalaWrapI.children.add(codeBlock(detail.scalaCodeImperative).delegate)
+
+        val scalaWrapF = new VBox(0)
+        scalaWrapF.padding = Insets(12)
+        scalaWrapF.style = s"-fx-background-color: ${Theme.BgDeep};"
+        scalaWrapF.children.add(codeBlock(detail.scalaCodeFunctional).delegate)
 
         codeTabs.tabs.addAll(
           makeTab("  PSEUDOCODE  ", pseudoWrap).delegate,
-          makeTab("  SCALA CODE  ", scalaWrap).delegate
+          makeTab("  SCALA CODE IMPERATIVE ", scalaWrapI).delegate,
+          makeTab("  SCALA CODE FUNCTIONAL  ", scalaWrapF).delegate,
         )
 
         detailInner.children.addAll(
