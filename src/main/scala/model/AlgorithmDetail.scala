@@ -64,21 +64,21 @@ object AlgorithmDetail:
           |  loop(list)""".stripMargin,
 
       timeComplexityNotes =
-        "Bubble Sort ma pesymistyczną i średnią złożoność O(n²). W najlepszym przypadku (gdy dane są już posortowane i zastosujemy wczesne zakończenie) może działać w O(n).",
+        "Bubble Sort has a worst-case and average time complexity of O(n²). In the best case, when the data is already sorted and early termination is applied, it can run in O(n).",
 
       spaceNotes =
-        "Algorytm działa w miejscu i wykorzystuje O(1) dodatkowej pamięci.",
+        "The algorithm operates in-place and uses O(1) additional memory.",
 
       prosAndCons = (
         List(
-          "Bardzo prosta implementacja",
-          "Dobre lokalne wykorzystanie pamięci – operuje na sąsiadach",
-          "Łatwy do analizy i wizualizacji"
+          "Very simple implementation",
+          "Good local memory usage — operates on adjacent elements",
+          "Easy to analyse and visualise"
         ),
         List(
-          "Pesymistyczna i średnia złożoność O(n²)",
-          "Możliwość wykonywania ogromnej liczby zbędnych porównań i zamian",
-          "Bardzo słaba praktyczna wydajność – rzadko stosowany w realnych systemach"
+          "Worst-case and average complexity of O(n²)",
+          "Can perform a large number of unnecessary comparisons and swaps",
+          "Very poor practical performance — rarely used in real-world systems"
         )
       )
     ),
@@ -146,23 +146,23 @@ object AlgorithmDetail:
           |  quicksort(list)""".stripMargin,
 
       timeComplexityNotes =
-        "Średnia złożoność O(n log n). W najgorszym przypadku (zły pivot) O(n²), dlatego stosuje się randomizację lub median-of-three.",
+        "Average time complexity is O(n log n). In the worst case, with a poor pivot choice, complexity degrades to O(n²), which is why randomisation or median-of-three pivot selection is commonly used.",
 
       spaceNotes =
-        "Sortowanie w miejscu (in-place). Wymaga O(log n) stosu rekurencji w przypadku średnim, O(n) w najgorszym.",
+        "Sorts in-place. Requires O(log n) stack space on average due to recursion, and O(n) in the worst case.",
 
       prosAndCons = (
         List(
-          "Bardzo szybki w praktyce (średnio O(n log n))",
-          "Dobre wykorzystanie pamięci podręcznej (cache-friendly)",
-          "Małe stałe w złożoności asymptotycznej",
-          "Szeroko stosowany w bibliotekach standardowych"
+          "Very fast in practice — average O(n log n)",
+          "Good cache performance (cache-friendly)",
+          "Small constant factors in asymptotic complexity",
+          "Widely used in standard libraries"
         ),
         List(
-          "Pesymistycznie O(n²)",
-          "Niestabilny",
-          "Zależny od wyboru pivota",
-          "Możliwość przepełnienia stosu przy głębokiej rekursji"
+          "Worst-case complexity of O(n²)",
+          "Not stable",
+          "Performance depends heavily on pivot selection",
+          "Risk of stack overflow with deep recursion"
         )
       )
     ),
@@ -218,23 +218,23 @@ object AlgorithmDetail:
           |  sort(list, Nil)""".stripMargin,
 
       timeComplexityNotes =
-        "Insertion Sort w najlepszym przypadku osiąga O(n), gdy dane są już częściowo lub całkowicie posortowane. W przypadku średnim i najgorszym działa w O(n²).",
+        "Insertion Sort achieves O(n) in the best case when the data is already partially or fully sorted. In the average and worst case it runs in O(n²).",
 
       spaceNotes =
-        "Algorytm działa w miejscu i wymaga jedynie O(1) dodatkowej pamięci.",
+        "The algorithm operates in-place and requires only O(1) additional memory.",
 
       prosAndCons = (
         List(
-          "Bardzo szybki dla prawie posortowanych danych – O(n)",
-          "Stabilny algorytm",
-          "Prosta implementacja",
-          "Działa w miejscu (O(1) pamięci)"
+          "Very fast for nearly sorted data — O(n)",
+          "Stable sorting algorithm",
+          "Simple implementation",
+          "In-place — O(1) memory usage"
         ),
         List(
-          "Najgorszy i średni czas O(n²)",
-          "Wymaga wielu przesunięć elementów",
-          "Słabo skaluje się dla dużych zbiorów danych",
-          "Wrażliwy na dane odwrotnie posortowane"
+          "Worst-case and average time complexity of O(n²)",
+          "Requires many element shifts",
+          "Scales poorly for large datasets",
+          "Sensitive to reverse-sorted input"
         )
       )
     ),
@@ -329,23 +329,23 @@ object AlgorithmDetail:
           |  a""".stripMargin,
 
       timeComplexityNotes =
-        "Budowa kopca ma złożoność O(n). Każde usunięcie elementu (ekstrakcja) wymaga O(log n), co daje łączną złożoność O(n log n) we wszystkich przypadkach (najlepszym, średnim i najgorszym).",
+        "Building the heap takes O(n). Each element extraction requires O(log n), giving an overall time complexity of O(n log n) in all cases — best, average, and worst.",
 
       spaceNotes =
-        "Sortowanie w miejscu (in-place) z użyciem O(1) dodatkowej pamięci. Stos wywołań rekurencyjnych dla procedury heapify ma złożoność O(log n).",
+        "Sorts in-place using O(1) additional memory. The recursive call stack for the heapify procedure has O(log n) depth.",
 
       prosAndCons = (
         List(
-          "Gwarantowane O(n log n) w każdym przypadku",
-          "Sortowanie w miejscu (O(1) dodatkowej pamięci)",
-          "Brak degeneracji do O(n²)",
-          "Dobre do struktur typu priority queue"
+          "Guaranteed O(n log n) in all cases",
+          "In-place sorting — O(1) additional memory",
+          "No degradation to O(n²)",
+          "Well suited for priority queue structures"
         ),
         List(
-          "Brak stabilności",
-          "Słaba lokalność pamięci (cache misses)",
-          "W praktyce wolniejszy niż QuickSort",
-          "Bardziej złożona implementacja"
+          "Not a stable sort",
+          "Poor cache locality — frequent cache misses",
+          "In practice slower than Quick Sort",
+          "More complex implementation"
         )
       )
     ),
@@ -432,23 +432,23 @@ object AlgorithmDetail:
           |    output""".stripMargin,
 
       timeComplexityNotes =
-        "liniowa złożoność czasowa; brak operacji porównywania elementów; wysoka wydajność dla małych zakresów danych",
+        "Linear time complexity O(n + k); no element comparisons are performed; highly efficient when the value range k is small relative to n.",
 
       spaceNotes =
-        "konieczność znajomości zakresu danych; dodatkowe zużycie pamięci; ograniczenie do danych liczbowych o niewielkim zakresie wartości",
+        "Requires knowledge of the value range in advance; uses O(n + k) additional memory for the count and output arrays; restricted to integer data with a limited value range.",
 
       prosAndCons = (
         List(
-          "liniowa złożoność czasowa",
-          "stabilność algorytmu",
-          "brak operacji porównywania elementów",
-          "wysoka wydajność dla małych zakresów danych"
+          "Linear time complexity O(n + k)",
+          "Stable sorting algorithm",
+          "No element comparisons required",
+          "Very efficient for small value ranges"
         ),
         List(
-          "konieczność znajomości zakresu danych",
-          "dodatkowe zużycie pamięci",
-          "ograniczenie do danych liczbowych o niewielkim zakresie wartości",
-          "mniejsza uniwersalność niż algorytmy porównawcze"
+          "Requires prior knowledge of the value range",
+          "Additional memory consumption",
+          "Restricted to integer data with a limited range of values",
+          "Less universal than comparison-based algorithms"
         )
       )
     ),
@@ -511,23 +511,23 @@ object AlgorithmDetail:
           |      .toArray""".stripMargin,
 
       timeComplexityNotes =
-        "oczekiwana złożoność O(n) przy jednostajnym rozkładzie danych; w pesymistycznym przypadku O(n²) gdy wszystkie elementy trafiają do jednego kubełka",
+        "Expected time complexity of O(n) for uniformly distributed data; degrades to O(n²) in the worst case when all elements fall into the same bucket.",
 
       spaceNotes =
-        "dodatkowe zużycie pamięci O(n + k), gdzie k to liczba kubełków; wymaga struktury list/kubełków oraz pamięci pomocniczej",
+        "Uses O(n + k) additional memory, where k is the number of buckets; requires auxiliary list structures and additional buffer space.",
 
       prosAndCons = (
         List(
-          "oczekiwana złożoność O(n) dla jednostajnego rozkładu danych",
-          "dobra wydajność w praktyce dla danych losowych",
-          "prosta implementacja przy użyciu kubełków",
-          "możliwość bardzo wysokiej wydajności dla dużych zbiorów"
+          "Expected O(n) time complexity for uniformly distributed data",
+          "Good practical performance for random input",
+          "Straightforward implementation using bucket structures",
+          "Can achieve very high throughput for large datasets"
         ),
         List(
-          "złożoność O(n²) w pesymistycznym przypadku",
-          "wymaga założenia o rozkładzie danych",
-          "dodatkowe zużycie pamięci",
-          "ograniczenie do danych z określonego przedziału lub normalizacji"
+          "Worst-case complexity of O(n²)",
+          "Assumes a known or uniform distribution of data",
+          "Additional memory consumption",
+          "Restricted to data within a known range or requiring normalisation"
         )
       )
     )
