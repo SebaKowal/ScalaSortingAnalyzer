@@ -53,7 +53,7 @@ class AnimationEngine(
     state.isRunning.value = false
     state.isPaused.value  = false
 
-  protected def processStep(step: SortStep): Unit = step match
+  private def processStep(step: SortStep): Unit = step match
     case Compare(i, j) =>
       state.comparisons.value += 1
       onHighlight(Some(i), Some(j))
