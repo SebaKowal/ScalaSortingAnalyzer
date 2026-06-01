@@ -12,8 +12,8 @@ class AnimationEngine(
                        onHighlight: (Option[Int], Option[Int]) => Unit,
                        onSorted: Int => Unit,
                        onSet: (Int, Int) => Unit,
-                       onCountUpdate: (Int, Int) => Unit,      // NEW
-                       onBucketUpdate: (Int, List[Int]) => Unit, // NEW
+                       onCountUpdate: (Int, Int) => Unit,
+                       onBucketUpdate: (Int, List[Int]) => Unit,
                        onDone: () => Unit
                       ):
   private var steps: Iterator[SortStep] = Iterator.empty
