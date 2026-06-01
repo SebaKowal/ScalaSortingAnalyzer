@@ -30,7 +30,6 @@ class RightPanel(state: AppState):
     v.style    = s"-fx-text-fill: $color; -fx-font-size: 11px; " +
       s"-fx-font-weight: bold; -fx-font-family: 'Consolas', monospace;"
     v.wrapText = false
-    // shrink text if it overflows
     v.minWidth = 10
     val box = new VBox(1)
     box.padding  = Insets(5, 7, 5, 7)
@@ -50,8 +49,7 @@ class RightPanel(state: AppState):
     row.alignment = Pos.CenterLeft
     row.children.addAll(dot, lbl.delegate)
     row
-
-  // ── Reactive labels ───────────────────────────────────────────
+  
   private val algoNameLbl = new Label("")
   algoNameLbl.style    = s"-fx-text-fill: ${Theme.AccentPrimary}; -fx-font-size: 14px; " +
     s"-fx-font-weight: bold; -fx-font-family: 'Consolas', monospace;"

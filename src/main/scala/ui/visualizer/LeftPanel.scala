@@ -13,7 +13,6 @@ import ui.utils.Theme
 
 class LeftPanel(state: AppState, viz: VisualizerPanel):
 
-  // ── Helpers ──────────────────────────────────────────────────
   private def hdr(text: String): Label =
     val l = new Label(text)
     l.style = Theme.titleStyle(9)
@@ -114,7 +113,6 @@ class LeftPanel(state: AppState, viz: VisualizerPanel):
   HBox.setHgrow(speedSlider, Priority.Always)
   speedRow.children.addAll(speedSlider.delegate, speedValLbl.delegate)
 
-  // ── Buttons ───────────────────────────────────────────────────
   private val btnStart    = makeBtn("▶  START",     Theme.buttonPrimary)
   private val btnPause    = makeBtn("⏸  PAUSE",     Theme.buttonSecondary)
   private val btnReset    = makeBtn("↺  RESET",     Theme.buttonSecondary)
@@ -142,7 +140,6 @@ class LeftPanel(state: AppState, viz: VisualizerPanel):
   HBox.setHgrow(btnGenerate, Priority.Always)
   btnRow.children.addAll(btnReset.delegate, btnGenerate.delegate)
 
-  // ── Status ────────────────────────────────────────────────────
   private val statusLbl = new Label("READY")
   statusLbl.style    = Theme.labelStyle(10, Theme.TextDim)
   statusLbl.maxWidth = Double.MaxValue
@@ -158,7 +155,6 @@ class LeftPanel(state: AppState, viz: VisualizerPanel):
     )
   }
 
-  // ── Live sort metrics ────────────────────────────────────────
   private val compLbl = makeStatVal(Theme.AccentPrimary)
   private val swapLbl = makeStatVal(Theme.AccentSecondary)
   private val timeLbl = makeStatVal(Theme.TextBright)
@@ -167,7 +163,7 @@ class LeftPanel(state: AppState, viz: VisualizerPanel):
   state.swaps.onChange       { (_, _, v) => swapLbl.text = f"${v.longValue()}%,d" }
   state.elapsedMs.onChange   { (_, _, v) => timeLbl.text = s"${v}ms" }
 
-  // ── Live JVM metrics ─────────────────────────────────────────
+  // Live JVM metrics
   private val heapLbl   = makeStatVal(Theme.AccentPrimary)
   private val cpuLbl    = makeStatVal(Theme.AccentSecondary)
   private val gcRunsLbl = makeStatVal(Theme.TextBright)
@@ -185,7 +181,6 @@ class LeftPanel(state: AppState, viz: VisualizerPanel):
     )
   jvmTimer.play()
 
-  // ── Panel assembly ────────────────────────────────────────────
   val panel: VBox = new VBox(0)
   panel.prefWidth = 230
   panel.minWidth  = 230

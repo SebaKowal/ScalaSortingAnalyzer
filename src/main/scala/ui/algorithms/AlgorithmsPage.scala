@@ -12,8 +12,7 @@ object AlgorithmsPage:
 
   def build(): HBox =
     val selectedAlgo = ObjectProperty[AlgorithmType](AlgorithmType.BubbleSort)
-
-    // ── Sidebar ───────────────────────────────────────────────
+    
     val sidebar = new VBox(0)
     sidebar.prefWidth = 220
     sidebar.minWidth  = 220
@@ -61,8 +60,7 @@ object AlgorithmsPage:
       itemBox.delegate.setOnMouseExited(_ => setActive(selectedAlgo.value == algo))
       sidebar.children.add(itemBox.delegate)
     }
-
-    // ── Detail pane ───────────────────────────────────────────
+    
     val detailInner = new VBox(0)
     detailInner.padding = Insets(28, 32, 28, 32)
     detailInner.style   = s"-fx-background-color: ${Theme.BgDeep};"
@@ -87,8 +85,7 @@ object AlgorithmsPage:
       box.style   = Theme.cardStyle
       box.children.addAll(k.delegate, v.delegate)
       box
-
-    // Code block as a Label — wraps naturally, no scrollbars, fully dark
+    
     def codeBlock(code: String): VBox =
       val lbl = new Label(code)
       lbl.style =
@@ -172,8 +169,7 @@ object AlgorithmsPage:
         val pcRow = new HBox(32, prosVBox, consVBox)
         pcRow.padding = Insets(0, 0, 8, 0)
         detailInner.children.addAll(sectionHdr("PROS & CONS").delegate, pcRow.delegate)
-
-        // ── Code tabs ─────────────────────────────────────────
+        
         val codeTabs = new TabPane
         codeTabs.minHeight = 0
         codeTabs.style =

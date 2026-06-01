@@ -63,9 +63,7 @@ object Theme:
 
   def separatorStyle =
     s"-fx-background-color: $BgBorder; -fx-pref-height: 1px;"
-
-  // ── ComboBox stylesheet ───────────────────────────────────────
-  // Inject this onto every ComboBox via getStylesheets.add(...)
+  
   val comboBoxStylesheet: String =
     "data:text/css," +
       java.net.URLEncoder.encode(
@@ -156,8 +154,7 @@ object Theme:
            |""".stripMargin,
         "UTF-8"
       ).replace("+", "%20")
-
-  // ── TabPane stylesheet ────────────────────────────────────────
+  
   val tabPaneStylesheet: String =
     "data:text/css," +
       java.net.URLEncoder.encode(
@@ -194,8 +191,7 @@ object Theme:
            |}""".stripMargin,
         "UTF-8"
       ).replace("+", "%20")
-
-  // ── TableView stylesheet ──────────────────────────────────────
+  
   val tableViewStylesheet: String =
     "data:text/css," +
       java.net.URLEncoder.encode(

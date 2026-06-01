@@ -11,46 +11,31 @@ object CountingSort extends SortAlgorithm:
     val a = arr.clone()
     val n = a.length
 
-    if n == 0 then emit(Done)
+    if n == 0 then
+      emit(Done)
     else
-      val max = a.max
-      val min = a.min
+      val min  = a.min
+      val max  = a.max
       val range = max - min + 1
-
-      // ── 1. Zliczanie wystąpień ──
       val count = Array.fill(range)(0)
+      
       for i <- 0 until n do
-        emit(Compare(i, i)) // Skanowanie tablicy
-        count(a(i) - min) += 1
+        val v = a(i)
+        emit(CountIncrement(v))             
+        count(v - min) += 1
+        emit(CountSet(v - min, count(v - min)))
+      
+      for i <- 1 until range do
+        count(i) += count(i - 1)
+        emit(CountSet(i, count(i)))
+      
+      val output = Array.fill(n)(0)
 
-      // ── 2. Odtwarzanie tablicy za pomocą efektownych zamian (Swap) ──
-      var outIdx = 0
-      for v <- 0 until range do
-        while count(v) > 0 do
-          val targetValue = v + min
-
-          // Szukamy, gdzie ten element AKTUALNIE znajduje się w tablicy (od outIdx w prawo)
-          var sourceIdx = outIdx
-          while sourceIdx < n && a(sourceIdx) != targetValue do
-            sourceIdx += 1
-
-          // Gdy go znajdziemy, zamiast robić Set, robimy fizyczny Swap
-          if sourceIdx < n then
-            if sourceIdx != outIdx then
-              // Element jest dalej w tablicy -> zamieniamy go miejscami, żeby "przypłynął" na przód
-              val tmp = a(outIdx)
-              a(outIdx) = a(sourceIdx)
-              a(sourceIdx) = tmp
-              emit(Swap(outIdx, sourceIdx))
-            else
-              // Element już stoi na właściwym miejscu
-              emit(Compare(outIdx, outIdx))
-
-            // Oznaczamy element jako bezpieczny i posortowany
-            emit(MarkSorted(outIdx))
-
-          outIdx += 1
-          count(v) -= 1
-
+      for i <- (0 until n).reverse do
+        val v = a(i)
+        count(v - min) -= 1
+        val pos = count(v - min)
+        output(pos) = v
+        emit(Set(pos, v))
       emit(Done)
   }

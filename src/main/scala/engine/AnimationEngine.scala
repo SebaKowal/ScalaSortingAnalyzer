@@ -12,8 +12,10 @@ class AnimationEngine(
                        onHighlight: (Option[Int], Option[Int]) => Unit,
                        onSorted: Int => Unit,
                        onSet: (Int, Int) => Unit,
+                       onCountUpdate: (Int, Int) => Unit,      // NEW
+                       onBucketUpdate: (Int, List[Int]) => Unit, // NEW
                        onDone: () => Unit
-                     ):
+                      ):
   private var steps: Iterator[SortStep] = Iterator.empty
   private var lastNanos: Long  = 0L
   private var startNanos: Long = 0L
@@ -57,21 +59,42 @@ class AnimationEngine(
     case Compare(i, j) =>
       state.comparisons.value += 1
       onHighlight(Some(i), Some(j))
+
     case Swap(i, j) =>
       state.swaps.value += 1
       onHighlight(Some(i), Some(j))
       onArrayChanged(Array(i, j))
+
     case Set(idx, value) =>
       onSet(idx, value)
       onHighlight(Some(idx), None)
+
     case MarkSorted(idx) =>
       onSorted(idx)
       onHighlight(None, None)
+
     case MarkSortedRange(from, to) =>
       for i <- from to to do onSorted(i)
       onHighlight(None, None)
+
     case ClearHighlights =>
       onHighlight(None, None)
+
     case Done =>
       onDone()
       state.isRunning.value = false
+
+    case CountIncrement(v) =>
+      onCountUpdate(v, -1)
+
+    case CountSet(idx, value) =>
+      onCountUpdate(idx, value)
+
+    case BucketInsert(bucket, value) =>
+      onBucketUpdate(bucket, List(value))
+
+    case BucketSet(bucket, values) =>
+      onBucketUpdate(bucket, values)
+
+
+
