@@ -1,7 +1,6 @@
 package ui.visualizer
 
 import app.AppState
-import scalafx.Includes.*
 import scalafx.scene.layout.*
 import ui.utils.Theme
 import ui.visualizer.{VisualizerPanel, LeftPanel, RightPanel}

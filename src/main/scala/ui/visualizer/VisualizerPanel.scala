@@ -4,10 +4,12 @@ import scalafx.scene.text.TextAlignment
 import app.AppState
 import engine.AnimationEngine
 import model.ArrayGenerator
+import scalafx.Includes.jfxColor2sfx
 import scalafx.scene.canvas.{Canvas, GraphicsContext}
 import scalafx.scene.layout.VBox
 import scalafx.scene.paint.Color
 import ui.utils.Theme
+import ui.utils.Theme.bucketColors
 
 class VisualizerPanel(state: AppState):
 
@@ -17,33 +19,16 @@ class VisualizerPanel(state: AppState):
   private var highlightB: Option[Int] = None
   private val sortedSet               = collection.mutable.Set.empty[Int]
 
-  // Counting sort state
   private var countArray: Map[Int, Int]  = Map.empty
   private var countMin: Int              = 0
-  private var countPhase: Int            = 0   // 0=counting, 1=prefix, 2=placing
+  private var countPhase: Int            = 0
   private var placedPositions: Set[Int]  = Set.empty
 
-  // Bucket sort state
   private var buckets: Map[Int, List[Int]]       = Map.empty
   private var bucketCount: Int                   = 0
-  private var elementBucketMap: Map[Int, Int]    = Map.empty // mainArray index -> bucketId
+  private var elementBucketMap: Map[Int, Int]    = Map.empty
 
-  // Nowa, rozszerzona paleta 12 kolorów (bez standardowego zielonego, pomarańczowego i niebieskiego)
-  // Wykorzystuje jaskrawe fiolety, magenta, głębokie róże, neonowe czerwienie i jasne odcienie żółci/złota
-  private val bucketColors = Array(
-    "#ff2d6b", // Jaskrawy Róż / Magenta
-    "#b06aff", // Elektryczny Fiolet
-    "#ffe066", // Żywy Żółty
-    "#d946ef", // Fuchsia
-    "#ff4d4d", // Neonowa Czerwień
-    "#a855f7", // Intensywny Fiolet (Orchid)
-    "#facc15", // Ciepłe Złoto
-    "#ec4899", // Hot Pink
-    "#f87171", // Jasny Koral / Łososiowy
-    "#c084fc", // Pastelowy Lawendowy
-    "#e11d48", // Karminowy Róż
-    "#fef08a"  // Pastelowy Żółty
-  )
+
 
   def isNonComparative: Boolean =
     val name = state.selectedAlgorithm.value.label
@@ -52,8 +37,8 @@ class VisualizerPanel(state: AppState):
   val topCanvas  = new Canvas(10, 80)
   val mainCanvas = new Canvas(10, 10)
 
-  val topGc: GraphicsContext  = topCanvas.graphicsContext2D
-  val mainGc: GraphicsContext = mainCanvas.graphicsContext2D
+  private val topGc: GraphicsContext  = topCanvas.graphicsContext2D
+  private val mainGc: GraphicsContext = mainCanvas.graphicsContext2D
 
   val root = new VBox()
   updateLayout()
@@ -149,8 +134,6 @@ class VisualizerPanel(state: AppState):
     else
       drawMain()
 
-  // ─── TOP PANEL ───────────────────────────────────────────────────────────────
-
   private def drawTop(): Unit =
     val w = topCanvas.width.value
     val h = topCanvas.height.value
@@ -168,91 +151,132 @@ class VisualizerPanel(state: AppState):
     topGc.setLineWidth(1.5)
     topGc.strokeLine(0, h - 1, w, h - 1)
 
-
-  // ─── COUNTING SORT TOP ───────────────────────────────────────────────────────
-
   private def drawCountingTop(w: Double, h: Double): Unit =
-    if countArray.isEmpty then return
+      val maxVal = if array.nonEmpty then cachedMax.toInt else 0
+      val totalCells = (maxVal - countMin + 1).max(1)
+      val cellW = w / totalCells
+      val boxY = 26.0
+      val boxH = 26.0
 
-    val phaseLabel = countPhase match
-      case 0 => "PHASE 1: COUNTING"
-      case 1 => "PHASE 2: PREFIX SUM"
-      case 2 => "PHASE 3: PLACING"
-      case _ => ""
-    val phaseColor = countPhase match
-      case 0 => Theme.AccentPrimary
-      case 1 => Theme.AccentSecondary
-      case 2 => Theme.AccentSuccess
-      case _ => Theme.TextDim
-    topGc.fill = Color.web(phaseColor)
-    topGc.setFont(javafx.scene.text.Font.font("Consolas", javafx.scene.text.FontWeight.BOLD, 9))
-    topGc.fillText(phaseLabel, 6, 12)
-    topGc.setFont(javafx.scene.text.Font.font("Consolas", 10))
+      val (phaseLabel, phaseColor) = countPhase match
+        case 0 => ("PHASE 1: FREQUENCY COUNT", Theme.AccentPrimary)
+        case 1 => ("PHASE 2: PREFIX SUM", Theme.AccentSecondary)
+        case 2 => ("PHASE 3: REVERSE PLACING", Theme.AccentSuccess)
+        case _ => ("", Theme.TextDim)
 
-    val active = countArray.toSeq.filter(_._2 > 0).sortBy(_._1)
-    if active.isEmpty then return
+      topGc.textAlign = scalafx.scene.text.TextAlignment.Left
+      topGc.fill = Color.web(phaseColor)
+      topGc.setFont(javafx.scene.text.Font.font("Consolas", javafx.scene.text.FontWeight.BOLD, 10))
+      topGc.fillText(phaseLabel, 8, 14)
 
-    val totalCells = active.size
-    val reservedTop = 18.0
-    val reservedBot = 18.0
-    val barZone = h - reservedTop - reservedBot - 2
-    val cellW   = w / totalCells
-    val maxVal  = active.map(_._2).max.max(1).toDouble
+      val highlightedCells = collection.mutable.Map.empty[Int, String]
+      if countPhase == 1 then
+        highlightA.foreach(cellIdx => highlightedCells(cellIdx) = Theme.AccentPrimary)
+        highlightB.foreach(cellIdx => highlightedCells(cellIdx) = Theme.AccentSecondary)
+      else
+        highlightA.foreach(idx => if idx < array.length then highlightedCells(array(idx) - countMin) = Theme.AccentPrimary)
+        highlightB.foreach(idx => if idx < array.length then highlightedCells(array(idx) - countMin) = Theme.AccentSecondary)
 
-    for ((value, count), k) <- active.zipWithIndex do
-      val x    = k * cellW
-      val barH = (count / maxVal * barZone).max(2.0)
-      val y    = h - reservedBot - barH
+      topGc.textAlign = scalafx.scene.text.TextAlignment.Center
 
-      val barColor = countPhase match
-        case 0 => Theme.AccentPrimary
-        case 1 => Theme.AccentSecondary
-        case 2 => Theme.AccentSuccess
-        case _ => Theme.AccentMuted
+      for i <- 0 until totalCells do
+        val value = countMin + i
+        val count = countArray.getOrElse(value, 0)
+        val x = i * cellW
+        val centerX = x + cellW / 2
 
-      topGc.fill = Color.web(barColor)
-      topGc.fillRect(x + 1, y, (cellW - 2).max(1), barH)
+        val isHighlighted = highlightedCells.contains(i)
+        val currentCellColor = if isHighlighted then highlightedCells(i) else phaseColor
 
-      if cellW >= 14 then
-        topGc.fill = Color.web(Theme.TextBright)
-        topGc.setFont(javafx.scene.text.Font.font("Consolas", 9))
-        val countStr = count.toString
-        val tx = x + cellW / 2 - countStr.length * 3
-        topGc.fillText(countStr, tx, y - 2)
+        if isHighlighted then
+          topGc.fill = Color.web(currentCellColor + "44")
+          topGc.fillRect(x + 1, boxY, (cellW - 2).max(1), boxH)
+          topGc.stroke = Color.web(currentCellColor)
+          topGc.setLineWidth(1.6)
+          topGc.strokeRect(x + 1, boxY, (cellW - 2).max(1), boxH)
+        else if count > 0 then
+          topGc.fill = Color.web(phaseColor + "15")
+          topGc.fillRect(x + 1, boxY, (cellW - 2).max(1), boxH)
+          topGc.stroke = Color.web(phaseColor + "aa")
+          topGc.setLineWidth(1.0)
+          topGc.strokeRect(x + 1, boxY, (cellW - 2).max(1), boxH)
+        else
+          topGc.fill = Color.web(Theme.BgBorder + "0d")
+          topGc.fillRect(x + 1, boxY, (cellW - 2).max(1), boxH)
+          topGc.stroke = Color.web(Theme.BgBorder + "33")
+          topGc.setLineWidth(0.6)
+          topGc.strokeRect(x + 1, boxY, (cellW - 2).max(1), boxH)
 
-      if cellW >= 14 then
-        topGc.fill = Color.web(phaseColor)
-        topGc.setFont(javafx.scene.text.Font.font("Consolas", 8))
-        val valStr = value.toString
-        val vx = x + cellW / 2 - valStr.length * 2.5
-        topGc.fillText(valStr, vx, h - 4)
+        if cellW >= 12 then
+          topGc.fill = if isHighlighted then Color.web(Theme.TextBright)
+          else if count > 0 then Color.web(Theme.TextBright).opacity(0.8)
+          else Color.web(Theme.TextDim).opacity(0.3)
+          topGc.setFont(javafx.scene.text.Font.font("Consolas", javafx.scene.text.FontWeight.BOLD, 10))
+          topGc.fillText(count.toString, centerX, boxY + 17)
 
-    val mainW  = mainCanvas.width.value
-    val mainH  = mainCanvas.height.value
-    val n      = array.length
-    val mainBarW = (mainW / n).max(1.0)
+          if isHighlighted && cellW >= 24 then
+            topGc.setFont(javafx.scene.text.Font.font("Consolas", 7.5))
+            if countPhase == 2 then
+              topGc.fill = Color.web(Theme.AccentDanger)
+              topGc.fillText("-1", centerX + 9, boxY + 10)
+            else if countPhase == 0 then
+              topGc.fill = Color.web(Theme.AccentSuccess)
+              topGc.fillText("+1", centerX + 9, boxY + 10)
 
-    topGc.setLineWidth(0.5)
-    for ((value, count), k) <- active.zipWithIndex do
-      if count > 0 then
-        val topCellCenterX = k * cellW + cellW / 2
+          topGc.fill = if isHighlighted then Color.web(currentCellColor) else Color.web(Theme.TextDim)
+          topGc.setFont(javafx.scene.text.Font.font("Consolas", 8))
+          topGc.fillText(value.toString, centerX, boxY + boxH + 12)
 
-        for i <- array.indices do
-          if array(i) == value then
-            val mainBarCenterX = i * mainBarW + mainBarW / 2
-            val dist = math.abs(topCellCenterX - mainBarCenterX)
-            if dist < w * 0.35 then
-              topGc.stroke = Color.web(barColorFor(countPhase) + "40")
-              topGc.strokeLine(topCellCenterX, h - 2, mainBarCenterX, h + 4)
+      if countPhase == 1 && highlightA.nonEmpty && highlightB.nonEmpty then
+        val idxA = highlightA.head
+        val idxB = highlightB.head
+        if (idxB - idxA).abs == 1 then
+          val cX_A = idxA * cellW + cellW / 2
+          val cX_B = idxB * cellW + cellW / 2
+
+          topGc.stroke = Color.web(Theme.AccentSecondary + "cc")
+          topGc.setLineWidth(1.5)
+
+          topGc.beginPath()
+          topGc.moveTo(cX_A, boxY - 2)
+          val controlY = boxY - 15
+          topGc.quadraticCurveTo((cX_A + cX_B) / 2, controlY, cX_B, boxY - 2)
+          topGc.stroke()
+
+          topGc.fill = Color.web(Theme.AccentSecondary)
+          val arrowDir = if cX_B > cX_A then -1.0 else 1.0
+          topGc.beginPath()
+          topGc.moveTo(cX_B, boxY - 2)
+          topGc.lineTo(cX_B + (arrowDir * 3), boxY - 6)
+          topGc.lineTo(cX_B + (arrowDir * -1), boxY - 9)
+          topGc.closePath()
+          topGc.fill()
+
+      if countPhase != 1 then
+        val mainW = mainCanvas.width.value
+        val n = array.length
+        val mainBarW = (mainW / n).max(1.0)
+
+        def drawLink(mainIdx: Int, colorHex: String): Unit =
+          if mainIdx >= 0 && mainIdx < array.length then
+            val v = array(mainIdx)
+            val cellIdx = v - countMin
+            if cellIdx >= 0 && cellIdx < totalCells then
+              val topCellCenterX = cellIdx * cellW + cellW / 2
+              val mainBarCenterX = mainIdx * mainBarW + mainBarW / 2
+
+              topGc.stroke = Color.web(colorHex + "aa")
+              topGc.setLineWidth(1.2)
+              topGc.strokeLine(topCellCenterX, boxY + boxH + 14, mainBarCenterX, h - 1)
+
+        highlightA.foreach(idx => drawLink(idx, Theme.AccentPrimary))
+        highlightB.foreach(idx => drawLink(idx, Theme.AccentSecondary))
 
   private def barColorFor(phase: Int): String = phase match
     case 0 => Theme.AccentPrimary
     case 1 => Theme.AccentSecondary
     case 2 => Theme.AccentSuccess
     case _ => Theme.AccentMuted
-
-
-  // ─── BUCKET SORT TOP ─────────────────────────────────────────────────────────
 
   private def drawBucketTop(w: Double, h: Double): Unit =
     val activeBuckets = buckets.toSeq.filter(_._2.nonEmpty).sortBy(_._1)
@@ -276,17 +300,14 @@ class VisualizerPanel(state: AppState):
       topGc.fillRect(x + 1, y, (sectionW - 2).max(1), barH)
 
       if sectionW >= 18 then
-        // Uruchamiamy automatyczne centrowanie tekstu w poziomie
         topGc.setTextAlign(TextAlignment.Center)
         val centerX = x + sectionW / 2
 
-        // 1. Nazwa kubełka: wsuwa się do środka (y + 11), a jeśli słupek jest za niski, wyskakuje nad niego (y - 2)
         topGc.fill = Color.web(Theme.TextBright)
         topGc.setFont(javafx.scene.text.Font.font("Consolas", javafx.scene.text.FontWeight.BOLD, 9))
         val labelY = if barH > 15 then y + 11 else y - 2
         topGc.fillText(s"B$bucket", centerX, labelY)
 
-        // 2. Licznik elementów: stabilnie wycentrowany na samym dole kolumny
         topGc.fill = Color.web(colorHex)
         topGc.setFont(javafx.scene.text.Font.font("Consolas", 8))
         topGc.fillText(count.toString, centerX, h - 4)
@@ -325,9 +346,6 @@ class VisualizerPanel(state: AppState):
       topGc.stroke = Color.web(colorHex + "88")
       topGc.strokeLine(topX0 + 1, topY, mainX0 + 1, topY + 6)
       topGc.strokeLine(topX1 - 1, topY, mainX1 - 1, topY + 6)
-
-
-  // ─── MAIN PANEL ──────────────────────────────────────────────────────────────
 
   private def drawMain(): Unit =
     val w = mainCanvas.width.value

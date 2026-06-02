@@ -2,7 +2,6 @@ package ui.visualizer
 
 import app.AppState
 import model.{AlgorithmDetail, AlgorithmInfo, AlgorithmType}
-import scalafx.Includes.*
 import scalafx.geometry.{Insets, Pos}
 import scalafx.scene.control.*
 import scalafx.scene.layout.*
@@ -49,7 +48,7 @@ class RightPanel(state: AppState):
     row.alignment = Pos.CenterLeft
     row.children.addAll(dot, lbl.delegate)
     row
-  
+
   private val algoNameLbl = new Label("")
   algoNameLbl.style    = s"-fx-text-fill: ${Theme.AccentPrimary}; -fx-font-size: 14px; " +
     s"-fx-font-weight: bold; -fx-font-family: 'Consolas', monospace;"

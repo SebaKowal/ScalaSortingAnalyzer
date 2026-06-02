@@ -1,23 +1,19 @@
 package ui
 
 import app.{AppRouter, AppState, Page}
-//import benchmark.BenchmarkState
 import scalafx.scene.layout.*
-import scalafx.Includes.*
 import ui.algorithms.AlgorithmsPage
-//import ui.benchmarking.{BenchmarkAnalysisPage, BenchmarkPage}
 import ui.visualizer.VisualizerPage
 import ui.utils.{NavBar, Theme}
 
 object MainView:
   def apply(): BorderPane =
-    val state  = AppState.instance
+    val state = AppState.instance
     val navbar = NavBar.build()
-    
-    val vizPage      = VisualizerPage.build(state)
-    val algoPage     = AlgorithmsPage.build()
-    //val benchPage    = BenchmarkPage.build()
-    
+
+    val vizPage = VisualizerPage.build(state)
+    val algoPage = AlgorithmsPage.build()
+
     val pageArea = new StackPane
     pageArea.style = s"-fx-background-color: ${Theme.BgDeep};"
     VBox.setVgrow(pageArea, Priority.Always)
@@ -25,17 +21,16 @@ object MainView:
     def showPage(page: Page): Unit =
       pageArea.children.clear()
       val node = page match
-        case Page.Visualizer  => vizPage.delegate
-        case Page.Algorithms  => algoPage.delegate
-        //case Page.Benchmark   => benchPage.delegate
-        
+        case Page.Visualizer => vizPage.delegate
+        case Page.Algorithms => algoPage.delegate
+
       pageArea.children.add(node)
 
     showPage(AppRouter.currentPage.value)
     AppRouter.currentPage.onChange { (_, _, p) => showPage(p) }
 
     val root = new BorderPane
-    root.style  = s"-fx-background-color: ${Theme.BgDeep};"
-    root.top    = navbar
+    root.style = s"-fx-background-color: ${Theme.BgDeep};"
+    root.top = navbar
     root.center = pageArea
     root

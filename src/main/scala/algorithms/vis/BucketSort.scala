@@ -21,7 +21,6 @@ object BucketSort extends SortAlgorithm:
       val bucketCount = math.max(1, n / 2)
       val buckets = Array.fill(bucketCount)(collection.mutable.ArrayBuffer.empty[Int])
 
-      // 1. GÓRA: WRZUCANIE DO KUBEŁKÓW (NIE SORTUJEMY)
       for v <- a do
         val idx =
           if range == 0 then 0
@@ -30,7 +29,6 @@ object BucketSort extends SortAlgorithm:
         buckets(idx) += v
         emit(BucketInsert(idx, v))
 
-      // 2. DÓŁ: PRZEPISANIE KUBEŁKÓW DO TABLICY GŁÓWNEJ
       var pos = 0
       val bucketRanges = collection.mutable.ArrayBuffer[(Int, Int)]()
 
@@ -38,11 +36,10 @@ object BucketSort extends SortAlgorithm:
         val start = pos
         for v <- bucket do
           a(pos) = v
-          emit(Set(pos, v))   // przepisanie do dolnego panelu
+          emit(Set(pos, v))
           pos += 1
         if start < pos then bucketRanges += ((start, pos - 1))
 
-      // 3. DÓŁ: SORTOWANIE PORÓWNAWCZE KAŻDEGO KUBEŁKA
       for (start, end) <- bucketRanges do
         for i <- start + 1 to end do
           var j = i

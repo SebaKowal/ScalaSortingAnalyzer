@@ -1,9 +1,8 @@
 package ui.algorithms
 
 import model.{AlgorithmDetail, AlgorithmInfo, AlgorithmType}
-import scalafx.Includes.*
 import scalafx.beans.property.ObjectProperty
-import scalafx.geometry.{Insets, Pos}
+import scalafx.geometry.Insets
 import scalafx.scene.control.*
 import scalafx.scene.layout.*
 import ui.utils.Theme

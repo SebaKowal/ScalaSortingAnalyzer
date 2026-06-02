@@ -1,12 +1,11 @@
 package ui.utils
 
 object Theme:
-  // Core palette
   val BgDeep      = "#080a12"
   val BgBase      = "#0d0f1c"
   val BgRaised    = "#13162a"
   val BgBorder    = "#1e2240"
-  val BgHover     = "#1a1e38"
+  private val BgHover     = "#1a1e38"
 
   val AccentPrimary   = "#00d4ff"
   val AccentSecondary = "#ff8c00"
@@ -17,12 +16,27 @@ object Theme:
   val TextBright  = "#e8eaff"
   val TextNormal  = "#8892b8"
   val TextDim     = "#6D719A"
-  val TextAccent  = "#00d4ff"
+  private val TextAccent  = "#00d4ff"
+
+  val bucketColors = Array(
+    "#ff2d6b",
+    "#b06aff",
+    "#ffe066",
+    "#d946ef",
+    "#ff4d4d",
+    "#a855f7",
+    "#facc15",
+    "#ec4899",
+    "#f87171",
+    "#c084fc",
+    "#e11d48",
+    "#fef08a"
+  )
 
   def panelStyle(extra: String = "") =
     s"-fx-background-color: $BgBase; $extra"
 
-  def cardStyle =
+  def cardStyle: String =
     s"-fx-background-color: $BgRaised; -fx-border-color: $BgBorder; " +
       s"-fx-border-radius: 4; -fx-background-radius: 4;"
 
@@ -32,22 +46,22 @@ object Theme:
   def titleStyle(size: Int = 12, color: String = TextAccent) =
     s"-fx-text-fill: $color; -fx-font-size: ${size}px; -fx-font-weight: bold; -fx-font-family: 'Consolas', monospace;"
 
-  def buttonPrimary =
+  def buttonPrimary: String =
     s"-fx-background-color: $AccentPrimary; -fx-text-fill: $BgDeep; " +
       s"-fx-font-weight: bold; -fx-font-family: 'Consolas', monospace; " +
       s"-fx-font-size: 11px; -fx-padding: 7 18; -fx-background-radius: 3; -fx-cursor: hand;"
 
-  def buttonSecondary =
+  def buttonSecondary: String =
     s"-fx-background-color: $BgRaised; -fx-text-fill: $TextNormal; " +
       s"-fx-border-color: $BgBorder; -fx-border-radius: 3; -fx-background-radius: 3; " +
       s"-fx-font-family: 'Consolas', monospace; -fx-font-size: 11px; -fx-padding: 7 18; -fx-cursor: hand;"
 
-  def buttonDanger =
+  def buttonDanger: String =
     s"-fx-background-color: transparent; -fx-text-fill: $AccentDanger; " +
       s"-fx-border-color: $AccentDanger; -fx-border-radius: 3; -fx-background-radius: 3; " +
       s"-fx-font-family: 'Consolas', monospace; -fx-font-size: 11px; -fx-padding: 7 18; -fx-cursor: hand;"
 
-  def comboStyle =
+  def comboStyle: String =
     s"-fx-background-color: $BgRaised; -fx-text-fill: $TextBright; " +
       s"-fx-border-color: $BgBorder; -fx-border-radius: 3; -fx-background-radius: 3; " +
       s"-fx-font-family: 'Consolas', monospace; -fx-font-size: 11px;"
@@ -63,7 +77,7 @@ object Theme:
 
   def separatorStyle =
     s"-fx-background-color: $BgBorder; -fx-pref-height: 1px;"
-  
+
   val comboBoxStylesheet: String =
     "data:text/css," +
       java.net.URLEncoder.encode(
@@ -154,7 +168,7 @@ object Theme:
            |""".stripMargin,
         "UTF-8"
       ).replace("+", "%20")
-  
+
   val tabPaneStylesheet: String =
     "data:text/css," +
       java.net.URLEncoder.encode(
@@ -191,7 +205,7 @@ object Theme:
            |}""".stripMargin,
         "UTF-8"
       ).replace("+", "%20")
-  
+
   val tableViewStylesheet: String =
     "data:text/css," +
       java.net.URLEncoder.encode(

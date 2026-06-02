@@ -1,7 +1,6 @@
 package ui.utils
 
 import app.{AppRouter, Page}
-import scalafx.Includes.*
 import scalafx.geometry.{Insets, Pos}
 import scalafx.scene.control.Label
 import scalafx.scene.layout.*
@@ -73,7 +72,7 @@ object NavBar:
 
     val vizItem   = navItem("VISUALIZER", Page.Visualizer)
     val algoItem  = navItem("ALGORITHMS", Page.Algorithms)
-    //val benchItem = navItem("BENCHMARK",  Page.Benchmark)
+
 
     val spacer = new Region
     HBox.setHgrow(spacer, Priority.Always)
@@ -87,7 +86,6 @@ object NavBar:
       brandBox.delegate,
       vizItem.delegate,
       algoItem.delegate,
-      //benchItem.delegate,
       spacer,
       versionLbl.delegate
     )
